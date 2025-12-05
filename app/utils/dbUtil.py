@@ -1,17 +1,23 @@
-import databases
 from sqlalchemy import create_engine
-from functools import lru_cache          #least recently used 
+from sqlalchemy.orm import sessionmaker, Session
+from functools import lru_cache
 from app import config
-from app.models import metadata
+from app.models import Base
 
 @lru_cache()
-def setting():
+def get_settings():
     return config.Settings()
 
-def database_pgsql_url_config():
-    return str(setting().DB_CONNECTION +"://"+setting().DB_USERNAME+":"+setting().DB_PASSWORD+
-               "@"+setting().DB_HOST+":"+setting().DB_PORT+"/"+setting().DB_DATABASE)
+def pgsql_url():
+    settings = get_settings()
+    return f"{settings.DB_CONNECTION}://{settings.DB_USERNAME}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_DATABASE}"
 
-database=databases.Database(database_pgsql_url_config())
-engine=create_engine(database_pgsql_url_config())
-metadata.create_all(engine)
+engine = create_engine(pgsql_url())
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base.metadata.create_all(bind=engine)
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

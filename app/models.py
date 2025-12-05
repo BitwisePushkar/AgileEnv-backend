@@ -1,13 +1,13 @@
-from sqlalchemy import Table,Column,Integer,String,DateTime,MetaData,Sequence
+from sqlalchemy import Column,Integer,String,DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime,timezone
 
-metadata=MetaData()
-
-users=Table(
-    "users",metadata,
-    Column("Id",Integer,Sequence("user_id_seq"),primary_key=True),
-    Column("Email",String(100)),
-    Column("Password",String(100)),
-    Column("UserName",String(50)),
-    Column("created_at",DateTime),
-    Column("status",String(1))
-)
+Base=declarative_base()
+class User(Base):
+    __tablename__ = "users"
+    id=Column("Id",Integer,primary_key=True,autoincrement=True)
+    email=Column("Email",String(100),unique=True,nullable=False)
+    password=Column("Password",String(255),nullable=False)
+    username=Column("UserName",String(50))
+    created_at=Column("created_at",DateTime,default=lambda:datetime.now(timezone.utc))
+    status= Column("status",String(1),default='1')
