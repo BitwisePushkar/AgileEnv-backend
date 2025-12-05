@@ -5,7 +5,7 @@ from datetime import datetime,timezone
 Base=declarative_base()
 class User(Base):
     __tablename__ = "users"
-    id=Column("Id",Integer,primary_key=True,autoincrement=True)
+    id=Column("Id",Integer,primary_key=True)
     email=Column("Email",String(100),unique=True,nullable=False)
     password=Column("Password",String(255),nullable=False)
     username=Column("UserName",String(50))
