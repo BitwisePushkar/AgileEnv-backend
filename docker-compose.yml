@@ -1,0 +1,8 @@
+services:
+  api:
+    build: .
+    container_name: AgileEnv
+    ports:
+      - "8000:80"
+    volumes:
+      - ./app:/app
