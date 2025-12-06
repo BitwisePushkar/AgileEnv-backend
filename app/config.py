@@ -1,6 +1,10 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    JWT_SECRET_KEY:str
+    JWT_ALGORITHM:str
+    JWT_ACCESS_TOKEN_EXPIRE_DAYS:int
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS:int
     DB_CONNECTION:str
     DB_HOST:str
     DB_PORT:str

@@ -29,6 +29,30 @@ class UserCreate(BaseModel):
             raise ValueError('Passwords do not match')
         return v
     
+class UserLogin(BaseModel):
+    email:EmailStr=Field(...,example="hell12@gmail.com")
+    password:str=Field(...,example="hell")
+
+class EmailRequest(BaseModel):
+    email:EmailStr=Field(...,example="hell12@gmail.com")
+
+class PasswordReset(BaseModel):
+    password:str=Field(...,example="hell")
+    @field_validator('password')
+    @classmethod
+    def val_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters.")
+        if not re.search(r'[A-Z]', v):
+            raise ValueError("Password must contain at least one uppercase letter.")
+        if not re.search(r'[a-z]', v):
+            raise ValueError("Password must contain at least one lowercase letter.")
+        if not re.search(r'[0-9]', v):
+            raise ValueError("Password must contain at least one number.")
+        if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', v):
+            raise ValueError("Password must contain at least one special character.")
+        return v
+    
 class UserList(BaseModel):
     id: int
     email: EmailStr
@@ -36,3 +60,11 @@ class UserList(BaseModel):
     
     class Config:
         from_attributes = True
+
+class Token(BaseModel):
+    access_token:str
+    refresh_token:str=None
+    token_type:str="bearer"
+
+class RefreshToken(BaseModel):
+    refresh_token:str
