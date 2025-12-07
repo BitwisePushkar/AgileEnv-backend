@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.auth import router
+from app.auth.router import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -23,4 +23,4 @@ app.add_middleware(
 def root():
     return {"message": "Welcome to Alige Backend"}
 
-app.include_router(router.router, tags=["Authentication"])
+app.include_router(auth_router, tags=["Authentication"])
