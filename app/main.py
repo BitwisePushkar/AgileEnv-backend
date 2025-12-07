@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 app = FastAPI(
     docs_url="/docs",
     redoc_url="/redocs",
-    title="API for Agile Backend",
-    description="All API made for Agile",
+    title="API documentation for Alige Backend",
+    description="All APIs made for the Alige webapp- a modern and interactive Jira based webapp with multiple functionalities ",
     version="1.0",
     openapi_url="/openapi.json"
 )
@@ -21,6 +21,6 @@ app.add_middleware(
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to Agile Backend"}
+    return {"message": "Welcome to Alige Backend"}
 
-app.include_router(router.router, tags=["auth"])
+app.include_router(router.router, tags=["Authentication"])
