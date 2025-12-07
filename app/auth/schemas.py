@@ -69,9 +69,6 @@ class Token(BaseModel):
 class RefreshToken(BaseModel):
     refresh_token:str
 
-from pydantic import BaseModel, Field, EmailStr, field_validator
-import re
-
 # OTP ke Schemas yeh wale
 class OTPRequest(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
@@ -105,8 +102,6 @@ class OTPVerify(BaseModel):
         if v not in ['registration', 'password_reset']:
             raise ValueError('Purpose must be either "registration" or "password_reset"')
         return v
-
-
 class OTPResponse(BaseModel):
     message: str
     email: EmailStr

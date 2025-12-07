@@ -8,8 +8,7 @@ from app.utils.passUtil import hash_pwd,verify_pass
 from app.utils import JWTUtil
 from datetime import timedelta
 from app.celery_app import celery_app
-
-
+from app.tasks.email_tasks import send_otp_email
 
 
 router = APIRouter()
@@ -108,17 +107,13 @@ def send_otp(request: schemas.OTPRequest, db: Session = Depends(get_db)):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-
     otp_code = crud.create_otp(db, request.email, request.purpose)
-    from app.tasks.email_tasks import send_otp_email
     send_otp_email.delay(request.email, otp_code, request.purpose)
     
     return {
         "message": "OTP sent successfully",
         "email": request.email
     }
-
-
 @router.post("/api/verify-otp")
 def verify_otp(request: schemas.OTPVerify, db: Session = Depends(get_db)):
     is_valid = crud.verify_otp(db, request.email, request.otp_code, request.purpose)
@@ -136,7 +131,6 @@ def verify_otp(request: schemas.OTPVerify, db: Session = Depends(get_db)):
 @router.post("/api/resend-otp")
 def resend_otp(request: schemas.OTPRequest, db: Session = Depends(get_db)):
     otp_code = crud.create_otp(db, request.email, request.purpose)
-    from app.tasks.email_tasks import send_otp_email
     send_otp_email.delay(request.email, otp_code, request.purpose)
     
     return {
@@ -148,10 +142,8 @@ def resend_otp(request: schemas.OTPRequest, db: Session = Depends(get_db)):
 def forgot_password(request: schemas.EmailRequest, db: Session = Depends(get_db)):
     user = crud.get_user_email(db, request.email)
     if not user:
-        return {"message": "If email exists, OTP has been sent"}
-    
+        return {"message": "If email exists, OTP has been sent"}  
     otp_code = crud.create_otp(db, request.email, "password_reset")
-    from app.tasks.email_tasks import send_otp_email
     send_otp_email.delay(request.email, otp_code, "password_reset")
     
     return {"message": "If email exists, OTP has been sent"}
@@ -172,7 +164,6 @@ def reset_password_with_otp(
     crud.mark_otp_as_used(db, email, otp_code, "password_reset")
     new_pass_hash = hash_pwd(new_password)
     user = crud.update_password(db, email, new_pass_hash)
-    
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
