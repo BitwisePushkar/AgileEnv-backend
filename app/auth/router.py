@@ -7,7 +7,7 @@ from app.utils.dbUtil import get_db
 from app.utils.passUtil import hash_pwd,verify_pass
 from app.utils import JWTUtil
 from datetime import timedelta
-from app.celery_app import celery_app
+# from app.celery_app import celery_app
 from app.tasks.email_tasks import send_otp_email
 
 

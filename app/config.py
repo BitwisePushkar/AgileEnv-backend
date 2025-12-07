@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     SMTP_PASSWORD : str
     SMTP_FROM : str
     
-    REDIS_URL : str
 
     class Config:
         env_file="app/.env"
