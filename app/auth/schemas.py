@@ -68,3 +68,45 @@ class Token(BaseModel):
 
 class RefreshToken(BaseModel):
     refresh_token:str
+
+from pydantic import BaseModel, Field, EmailStr, field_validator
+import re
+
+# OTP ke Schemas yeh wale
+class OTPRequest(BaseModel):
+    email: EmailStr = Field(..., example="user@example.com")
+    purpose: str = Field(..., example="registration")
+    
+    @field_validator('purpose')
+    @classmethod
+    def validate_purpose(cls, v):
+        if v not in ['registration', 'password_reset']:
+            raise ValueError('Purpose must be either "registration" or "password_reset"')
+        return v
+
+
+class OTPVerify(BaseModel):
+    email: EmailStr = Field(..., example="user@example.com")
+    otp_code: str = Field(..., example="123456", min_length=6, max_length=6)
+    purpose: str = Field(..., example="registration")
+    
+    @field_validator('otp_code')
+    @classmethod
+    def validate_otp(cls, v):
+        if not v.isdigit():
+            raise ValueError('OTP must contain only digits')
+        if len(v) != 6:
+            raise ValueError('OTP must be exactly 6 digits')
+        return v
+    
+    @field_validator('purpose')
+    @classmethod
+    def validate_purpose(cls, v):
+        if v not in ['registration', 'password_reset']:
+            raise ValueError('Purpose must be either "registration" or "password_reset"')
+        return v
+
+
+class OTPResponse(BaseModel):
+    message: str
+    email: EmailStr
