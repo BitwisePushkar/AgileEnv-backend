@@ -10,7 +10,7 @@ class User(Base):
     password=Column("Password",String(255),nullable=False)
     username=Column("UserName",String(50))
     created_at=Column("created_at",DateTime,default=lambda:datetime.now(timezone.utc))
-    is_active= Column("status",Boolean,default=True)
+    status= Column("status", String(1),default="1")
 
 class TokenBlackList(Base):
     __tablename__="Blacklist"
