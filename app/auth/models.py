@@ -1,4 +1,4 @@
-from sqlalchemy import Column,Integer,String,DateTime
+from sqlalchemy import Column,Integer,String,DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime,timezone
 
@@ -10,7 +10,7 @@ class User(Base):
     password=Column("Password",String(255),nullable=False)
     username=Column("UserName",String(50))
     created_at=Column("created_at",DateTime,default=lambda:datetime.now(timezone.utc))
-    status= Column("status",String(1),default='1')
+    is_active= Column("status",Boolean,default=True)
 
 class TokenBlackList(Base):
     __tablename__="Blacklist"

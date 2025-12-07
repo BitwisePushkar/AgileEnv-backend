@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from functools import lru_cache
 from app import config
-from app.models import Base
+from app.auth.models import Base
 
 @lru_cache()
 def get_settings():

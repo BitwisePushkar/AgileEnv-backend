@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from app.models import User,TokenBlackList
-from app.auth.schema import UserCreate
+from app.auth.models import User,TokenBlackList
+from app.auth.schemas import UserCreate
 from datetime import datetime, timezone, timedelta
 
 def user_exist(db: Session, email: str):
