@@ -86,3 +86,57 @@ def delete(token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.
     if not deleted:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="failed to delete account")
     return{"message":"successfully deleted account","email":current_user.email}
+
+@router.post("/api/send-otp")
+def send_otp(request: schema.OTPRequest, db: Session = Depends(get_db)):
+
+    if request.purpose == "registration":
+        existing_user = crud.user_exist(db, request.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+    if request.purpose == "password_reset":
+        user = crud.get_user_email(db, request.email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+    otp_code = crud.create_otp(db, request.email, request.purpose)
+    from app.tasks.email_tasks import send_otp_email
+    send_otp_email.delay(request.email, otp_code, request.purpose)
+    
+    return {
+        "message": "OTP sent successfully",
+        "email": request.email
+    }
+
+
+@router.post("/api/verify-otp")
+def verify_otp(request: schema.OTPVerify, db: Session = Depends(get_db)):
+    is_valid = crud.verify_otp(db, request.email, request.otp_code, request.purpose)
+    
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OTP"
+        )
+    crud.mark_otp_as_used(db, request.email, request.otp_code, request.purpose)
+    
+    return {"message": "OTP verified successfully"}
+
+
+@router.post("/api/resend-otp")
+def resend_otp(request: schema.OTPRequest, db: Session = Depends(get_db)):
+    otp_code = crud.create_otp(db, request.email, request.purpose)
+    from app.tasks.email_tasks import send_otp_email
+    send_otp_email.delay(request.email, otp_code, request.purpose)
+    
+    return {
+        "message": "OTP resent successfully",
+        "email": request.email
+    }
+
