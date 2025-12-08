@@ -23,4 +23,8 @@ app.add_middleware(
 def root():
     return {"message": "Welcome to Alige Backend"}
 
+@app.get("/health")
+def health_check():
+    return {"status":"OK"}
+
 app.include_router(auth_router, tags=["Authentication"])
