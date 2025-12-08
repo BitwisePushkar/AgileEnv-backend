@@ -11,14 +11,12 @@ class Settings(BaseSettings):
     DB_DATABASE:str
     DB_USERNAME:str
     DB_PASSWORD:str
-
+    API_KEY:str
     SMTP_HOST : str
     SMTP_PORT : int
     SMTP_USER : str
     SMTP_PASSWORD : str
-    SMTP_FROM : str
-    
-    REDIS_URL : str
+    FROM_EMAIL : str
 
     class Config:
         env_file="app/.env"

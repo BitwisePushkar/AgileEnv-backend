@@ -8,9 +8,10 @@ class User(Base):
     id=Column("Id",Integer,primary_key=True)
     email=Column("Email",String(100),unique=True,nullable=False,index=True)
     password=Column("Password",String(255),nullable=False)
-    username=Column("UserName",String(50))
+    username=Column("UserName",String(50),unique=True,nullable=False,index=True)
     created_at=Column("created_at",DateTime,default=lambda:datetime.now(timezone.utc))
-    status= Column("status", String(1),default="1")
+    is_active=Column("is_active",Boolean,default=True)
+    is_verified=Column("is_verified",Boolean,default=False) 
 
 class TokenBlackList(Base):
     __tablename__="Blacklist"
@@ -25,6 +26,7 @@ class OTP(Base):
     otp_code = Column("Otp_code",String(6),nullable = False)
     purpose = Column("Purpose",String(20),nullable = False)
     created_at = Column("Created_at",DateTime,nullable= False, default = lambda: datetime.now(timezone.utc))
-    is_used = Column("Is_used",Boolean,default = False )
     expires_at= Column("Expires_at",DateTime, nullable = False )
-
+    failed_attempt=Column("failed_attempt",Integer,default=0)
+    max_attempt=Column("max_attempt",Integer,default=5)
+    locked_until=Column("locked_until",DateTime,nullable=True)
