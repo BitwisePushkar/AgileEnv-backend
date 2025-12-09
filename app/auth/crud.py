@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.auth.models import User,TokenBlackList, OTP
+from app.auth.models import User,TokenBlackList,OTP,OAuthAccount
 from app.auth.schemas import UserCreate
 from datetime import datetime, timezone, timedelta
 from random import randint
@@ -22,6 +22,50 @@ def save_user_unverified(user:UserCreate,db:Session,hash_pwd:str):
     db.commit()
     db.refresh(db_user)
     return db_user
+
+def create_oauth_user(db:Session,email:str,username:str,provider:str,provider_user_id:str):
+    db_user=User(email=email,password=None,username=username,created_at=datetime.now(timezone.utc),
+                 is_active=True,is_verified=True)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    oauth_account=OAuthAccount(user_id=db_user.id,provider=provider,provider_user_id=provider_user_id,
+                               created_at=datetime.now(timezone.utc))
+    db.add(oauth_account)
+    db.commit()
+    return db_user
+
+def get_user_oauth(db:Session,provider:str,provider_user_id:str):
+    oauth_account=db.query(OAuthAccount).filter(OAuthAccount.provider==provider,OAuthAccount.provider_user_id==provider_user_id).first()
+    if oauth_account:
+        return db.query(User).filter(User.id==oauth_account.user_id).first()
+    return None
+
+def link_oauth_account(db:Session,user_id:int,provider:str,provider_user_id:str):
+    exist=db.query(OAuthAccount).filter(OAuthAccount.user_id==user_id,OAuthAccount.provider==provider).first()
+    if exist:
+        exist.provider_user_id=provider_user_id
+        exist.updated_at=datetime.now(timezone.utc)
+        db.commit()
+        return exist
+    oauth_account=OAuthAccount(user_id=user_id,provider=provider,provider_user_id=provider_user_id,
+                               created_at=datetime.now(timezone.utc))
+    db.add(oauth_account)
+    db.commit()
+    db.refresh(oauth_account)
+
+    return oauth_account
+
+def unlink_oauth_account(db:Session,user_id:int,provider:str):
+    oauth_account=db.query(OAuthAccount).filter(OAuthAccount.user_id==user_id,OAuthAccount.provider==provider).first()
+    if oauth_account:
+        db.delete(oauth_account)
+        db.commit()
+        return True
+    return False
+
+def get_user_oauth_account(db:Session,user_id:int):
+    return db.query(OAuthAccount).filter(OAuthAccount.user_id==user_id).all()
 
 def get_user_email(db:Session,email:str):
     return db.query(User).filter(User.email==email).first()

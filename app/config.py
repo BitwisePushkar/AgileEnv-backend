@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     SMTP_USER : str
     SMTP_PASSWORD : str
     FROM_EMAIL : str
-
+    GITHUB_CLIENT_ID:str
+    GITHUB_CLIENT_SECRET:str
+    GITHUB_REDIRECT_URI:str
+    
     class Config:
         env_file="app/.env"
         env_file_encoding="utf-8"

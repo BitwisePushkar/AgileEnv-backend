@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.auth.router import router as auth_router
+from app.auth.githubrouter import router as github_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -25,6 +26,7 @@ def root():
 
 @app.get("/health")
 def health_check():
-    return {"status":"OK"}
+    return {"status":"OK","service": "Alige Backend","version": "1.0"}
 
 app.include_router(auth_router, tags=["Authentication"])
+app.include_router(github_router,tags=["Github OAuth"])

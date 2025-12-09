@@ -119,7 +119,7 @@ def delete(token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.
 def forget_password(request:schemas.EmailRequest,db:Session=Depends(get_db)):
     user=crud.user_exist(db,request.email)
     if not user:
-        return schemas.OTPRequest(message="if email exist,otp sent",email=request.email)
+        return schemas.OTPResponse(message="if email exist,otp sent",email=request.email)
     is_locked,minutes_remaining=crud.is_otp_locked(db, request.email, "password_reset")
     if is_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Too many failed OTP attempts.")
@@ -153,4 +153,4 @@ def resend_otp(request:schemas.EmailRequest,db:Session=Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="unable to send otp")
     send_otp_email(request.email,otp,"password_reset")
     logger.info(f"Password reset OTP resent to: {request.email}")
-    return schemas.OTPResponse(message="otp sentsuccessfully",email=request.email)
+    return schemas.OTPResponse(message="otp sent successfully",email=request.email)

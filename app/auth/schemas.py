@@ -100,7 +100,6 @@ class OTPRequest(BaseModel):
         return v
 
 class OTPVerify(BaseModel):
-    otp_code:str
     email: EmailStr = Field(..., example="user@example.com")
     otp_code: str = Field(..., example="123456", min_length=6, max_length=6)
     purpose: str = Field(..., example="registration")
@@ -124,3 +123,16 @@ class OTPVerify(BaseModel):
 class OTPResponse(BaseModel):
     message: str
     email: EmailStr
+
+class GitHubAuthResponse(BaseModel):
+    access_token:str
+    refresh_token:str
+    token_type:str="bearer"
+    user:dict
+
+class GitHubCallBack(BaseModel):
+    code:str=Field(...,description="auth code by github")
+    state:str=Field(...,description="protection state")
+
+class OAuthLink(BaseModel):
+    code:str=Field(...,description="auth code by github")
