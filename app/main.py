@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.auth.router import router as auth_router
 from app.auth.githubrouter import router as github_router
+from app.auth.googlerouter import router as google_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -30,3 +31,4 @@ def health_check():
 
 app.include_router(auth_router, tags=["Authentication"])
 app.include_router(github_router,tags=["Github OAuth"])
+app.include_router(google_router,tags=["Google Oauth routes"])
