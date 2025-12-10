@@ -15,6 +15,7 @@ def pgsql_url():
 engine = create_engine(pgsql_url())
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
+
 def get_db():
     db = SessionLocal()
     try:

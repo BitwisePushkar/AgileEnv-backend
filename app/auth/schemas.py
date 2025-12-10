@@ -6,11 +6,11 @@ class UserCreate(BaseModel):
     password:str=Field(...,example="hell")
     password2: str=Field(...,example="hell123")
     username:str=Field(...,example="Hellboy")
-
+    
     @field_validator('password')
     @classmethod
     def val_password(cls, v):
-        if len(v) < 8:
+        if len(v) < 8 or len(v) > 128:
             raise ValueError("Password must be at least 8 characters.")
         if not re.search(r'[A-Z]', v):
             raise ValueError("Password must contain at least one uppercase letter.")
@@ -29,15 +29,27 @@ class UserCreate(BaseModel):
             raise ValueError('Passwords do not match')
         return v
     
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v):
+        if len(v)<3 or len(v)>50:
+            raise ValueError("Username must be 3-50 characters")
+        if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            raise ValueError("Username can only contain letters, numbers, and underscores")
+        return v
+    
 class UserLogin(BaseModel):
     email:EmailStr=Field(...,example="hell12@gmail.com")
     password:str=Field(...,example="hell")
 
 class EmailRequest(BaseModel):
     email:EmailStr=Field(...,example="hell12@gmail.com")
-
-class PasswordReset(BaseModel):
+    
+class PasswordResetRequest(BaseModel):
+    email:str=Field(...,example="hell12@gmail.com")
+    otp:str=Field(...,example="123456",min_length=6,max_length=6)
     password:str=Field(...,example="hell")
+
     @field_validator('password')
     @classmethod
     def val_password(cls, v):
@@ -51,6 +63,13 @@ class PasswordReset(BaseModel):
             raise ValueError("Password must contain at least one number.")
         if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', v):
             raise ValueError("Password must contain at least one special character.")
+        return v
+    
+    @field_validator('otp')
+    @classmethod
+    def validate_otp(cls,v):
+        if not v.isdigit():
+            raise ValueError('OTP must have digits')
         return v
     
 class UserList(BaseModel):
@@ -69,7 +88,6 @@ class Token(BaseModel):
 class RefreshToken(BaseModel):
     refresh_token:str
 
-# OTP ke Schemas yeh wale
 class OTPRequest(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
     purpose: str = Field(..., example="registration")
@@ -80,7 +98,6 @@ class OTPRequest(BaseModel):
         if v not in ['registration', 'password_reset']:
             raise ValueError('Purpose must be either "registration" or "password_reset"')
         return v
-
 
 class OTPVerify(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
@@ -102,6 +119,20 @@ class OTPVerify(BaseModel):
         if v not in ['registration', 'password_reset']:
             raise ValueError('Purpose must be either "registration" or "password_reset"')
         return v
+
 class OTPResponse(BaseModel):
     message: str
     email: EmailStr
+
+class GitHubAuthResponse(BaseModel):
+    access_token:str
+    refresh_token:str
+    token_type:str="bearer"
+    user:dict
+
+class GitHubCallBack(BaseModel):
+    code:str=Field(...,description="auth code by github")
+    state:str=Field(...,description="protection state")
+
+class OAuthLink(BaseModel):
+    code:str=Field(...,description="auth code by github")

@@ -11,14 +11,16 @@ class Settings(BaseSettings):
     DB_DATABASE:str
     DB_USERNAME:str
     DB_PASSWORD:str
-
+    API_KEY:str
     SMTP_HOST : str
     SMTP_PORT : int
     SMTP_USER : str
     SMTP_PASSWORD : str
-    SMTP_FROM : str
+    FROM_EMAIL : str
+    GITHUB_CLIENT_ID:str
+    GITHUB_CLIENT_SECRET:str
+    GITHUB_REDIRECT_URI:str
     
-
     class Config:
         env_file="app/.env"
         env_file_encoding="utf-8"
