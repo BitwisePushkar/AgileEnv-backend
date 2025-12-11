@@ -11,6 +11,8 @@ services:
 
     depends_on:
     - db
+    environment:
+    DATABASE_URL: postgres://admin:admin123@db:5432/mydb
   
   db:
     image: postgres:15
