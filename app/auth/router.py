@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends,Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.auth import schemas 
@@ -8,12 +8,17 @@ from app.utils.passUtil import hash_pwd,verify_pass
 from app.utils import JWTUtil
 from app.utils.emailUtil import send_otp_email
 import logging 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter=Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 logger=logging.getLogger(__name__)
 
 @router.post("/api/register/", status_code=status.HTTP_201_CREATED,response_model=schemas.OTPResponse)
-def register(user:schemas.UserCreate,db:Session=Depends(get_db)):
+@limiter.limit("5/hour")
+def register(request:Request,user:schemas.UserCreate,db:Session=Depends(get_db)):
     exist_user = crud.user_exist(db, user.email)
     if exist_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered")
@@ -30,7 +35,8 @@ def register(user:schemas.UserCreate,db:Session=Depends(get_db)):
     return {"message":"sent email successfully","email":user.email}
 
 @router.post("/api/verify-registration/",response_model=schemas.Token)
-def verify_registration(otp:schemas.OTPVerify,db:Session=Depends(get_db)):
+@limiter.limit("10/minute")
+def verify_registration(request:Request,otp:schemas.OTPVerify,db:Session=Depends(get_db)):
     is_valid,attempts_remaining,error_message=crud.verify_and_delete_otp(db,otp.email,otp.otp_code,otp.purpose)
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="invalid or expired otp")
@@ -40,8 +46,9 @@ def verify_registration(otp:schemas.OTPVerify,db:Session=Depends(get_db)):
     return {"access_token":access_token,"refresh_token": refresh_token,"token_type":"Bearer"}
 
 @router.post("/api/resend-otp-registration/",response_model=schemas.OTPResponse)
-def resend_otp(request:schemas.EmailRequest,db:Session=Depends(get_db)):
-    user=crud.get_user_email(db,request.email)
+@limiter.limit("5/hour")
+def resend_otp(request:Request,req:schemas.EmailRequest,db:Session=Depends(get_db)):
+    user=crud.get_user_email(db,req.email)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="user not found")
     if user.is_verified:
@@ -57,7 +64,8 @@ def resend_otp(request:schemas.EmailRequest,db:Session=Depends(get_db)):
     return {"message":"email resent successfully","email":user.email}
 
 @router.post("/api/login/",status_code=status.HTTP_200_OK,response_model=schemas.Token)
-def login(form_data:OAuth2PasswordRequestForm=Depends(),db:Session=Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request:Request,form_data:OAuth2PasswordRequestForm=Depends(),db:Session=Depends(get_db)):
     db_user=crud.get_user_and_username(db,form_data.username)
     if not db_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username/Email or Password",
@@ -75,7 +83,8 @@ def login(form_data:OAuth2PasswordRequestForm=Depends(),db:Session=Depends(get_d
     return {"access_token":access_token,"refresh_token": refresh_token,"token_type":"Bearer"}
 
 @router.post("/api/refresh/",response_model=schemas.Token)
-def refresh_token(refresh:schemas.RefreshToken,db:Session=Depends(get_db)):
+@limiter.limit("20/minute")
+def refresh_token(request:Request,refresh:schemas.RefreshToken,db:Session=Depends(get_db)):
     payload=JWTUtil.decode_token(refresh.refresh_token)
     if payload is None or payload.get("type")!="refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid refresh token",
@@ -89,14 +98,16 @@ def refresh_token(refresh:schemas.RefreshToken,db:Session=Depends(get_db)):
     return {"access_token":access_token,"token_type":"Bearer"}
 
 @router.post("/api/logout/")
-def logout(token:str=Depends(JWTUtil.oauth_schema),current_user:str=Depends(JWTUtil.get_user),
+@limiter.limit("30/minute")
+def logout(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user:str=Depends(JWTUtil.get_user),
            db:Session=Depends(get_db)):
     crud.add_token_blacklist(db,token)
     logger.info(f"User logged out: {current_user.email}")
     return{"message":"Successfull logout"}
 
 @router.delete("/api/deactivate/")
-def deactivate(token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),
+@limiter.limit("5/hour")
+def deactivate(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),
                   db:Session=Depends(get_db)):
     deactivate=crud.deactivate_user(db,current_user.email)
     if not deactivate:
@@ -106,7 +117,8 @@ def deactivate(token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTU
     return{"message":"successfully deactivated","email":current_user.email}
 
 @router.delete("/api/delete/")
-def delete(token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),
+@limiter.limit("3/hour")
+def delete(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),
                   db:Session=Depends(get_db)):
     crud.add_token_blacklist(db,token)
     deleted=crud.delete_user(db,current_user.id)
@@ -116,22 +128,24 @@ def delete(token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.
     return{"message":"successfully deleted account","email":current_user.email}
 
 @router.post("/api/forget-password/",response_model=schemas.OTPResponse)
-def forget_password(request:schemas.EmailRequest,db:Session=Depends(get_db)):
-    user=crud.user_exist(db,request.email)
+@limiter.limit("5/hour")
+def forget_password(request: Request,req:schemas.EmailRequest,db:Session=Depends(get_db)):
+    user=crud.user_exist(db,req.email)
     if not user:
-        return schemas.OTPResponse(message="if email exist,otp sent",email=request.email)
-    is_locked,minutes_remaining=crud.is_otp_locked(db, request.email, "password_reset")
+        return schemas.OTPResponse(message="if email exist,otp sent",email=req.email)
+    is_locked,minutes_remaining=crud.is_otp_locked(db, req.email, "password_reset")
     if is_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Too many failed OTP attempts.")
-    otp=crud.create_otp(db,request.email,"password_reset")
+    otp=crud.create_otp(db,req.email,"password_reset")
     if otp is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="unable to send otp")
-    send_otp_email(request.email,otp,"password_reset")
-    logger.info(f"Password reset OTP sent to: {request.email}")
-    return {"message":"email sent successfully","email":request.email}
+    send_otp_email(req.email,otp,"password_reset")
+    logger.info(f"Password reset OTP sent to: {req.email}")
+    return {"message":"email sent successfully","email":req.email}
 
 @router.put("/api/resetpassword/")
-def resetpassword(reset:schemas.PasswordResetRequest,db:Session=Depends(get_db)):
+@limiter.limit("5/hour")
+def resetpassword(request: Request,reset:schemas.PasswordResetRequest,db:Session=Depends(get_db)):
     is_valid,attempts_remaining,error_message=crud.verify_and_delete_otp(db, reset.email, reset.otp, "password_reset")
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="invalid otp ")
@@ -141,16 +155,17 @@ def resetpassword(reset:schemas.PasswordResetRequest,db:Session=Depends(get_db))
     return {"message": "Password reset successfully"}
 
 @router.post("/api/resend-otp-password/",response_model=schemas.OTPResponse)
-def resend_otp(request:schemas.EmailRequest,db:Session=Depends(get_db)):
-    user=crud.get_user_email(db,request.email)
+@limiter.limit("3/hour")
+def resend_otp(request: Request,req:schemas.EmailRequest,db:Session=Depends(get_db)):
+    user=crud.get_user_email(db,req.email)
     if not user:
-        return schemas.OTPResponse(message="if email exist, otp sent",email=request.email)
-    is_locked,minutes_remaining=crud.is_otp_locked(db,request.email,"password_reset")
+        return schemas.OTPResponse(message="if email exist, otp sent",email=req.email)
+    is_locked,minutes_remaining=crud.is_otp_locked(db,req.email,"password_reset")
     if is_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Too many failed OTP attempts.")
-    otp=crud.create_otp(db,request.email,"password_reset")
+    otp=crud.create_otp(db,req.email,"password_reset")
     if otp is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="unable to send otp")
-    send_otp_email(request.email,otp,"password_reset")
-    logger.info(f"Password reset OTP resent to: {request.email}")
-    return schemas.OTPResponse(message="otp sent successfully",email=request.email)
+    send_otp_email(req.email,otp,"password_reset")
+    logger.info(f"Password reset OTP resent to: {req.email}")
+    return schemas.OTPResponse(message="otp sent successfully",email=req.email)

@@ -138,11 +138,11 @@ class OAuthLink(BaseModel):
     code:str=Field(...,description="auth code by github")
 
 class GoogleAuthResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    user: dict
+    access_token:str
+    refresh_token:str
+    token_type:str="bearer"
+    user:dict
 
 class GoogleCallBack(BaseModel):
-    code: str = Field(..., description="authcode from google")
-    state: str = Field(..., description="csrf protectionstate")
+    code:str=Field(...,description="Authorization code from Google")
+    state:str=Field(...,description="CSRF protection state")
