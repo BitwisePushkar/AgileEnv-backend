@@ -6,12 +6,16 @@ from app.utils import JWTUtil
 from app.utils.githubUtil import github_oauth
 import logging
 import secrets
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 logger = logging.getLogger(__name__)
 csrf_states = {}
 
 @router.get("/api/auth/github/login")
+@limiter.limit("10/minute")
 async def github_login(request:Request):
     state=secrets.token_urlsafe(32)
     csrf_states[state]=True
@@ -20,6 +24,7 @@ async def github_login(request:Request):
     return {"authorization_url": auth_url,"message": "Redirect user to this URL"}
 
 @router.post("/api/auth/github/callback", response_model=schemas.GitHubAuthResponse)
+@limiter.limit("10/minute")
 async def github_callback(request:Request,callback:schemas.GitHubCallBack,db: Session = Depends(get_db)):
     if callback.state not in csrf_states:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Invalid or expired state parameter")
@@ -59,6 +64,7 @@ async def github_callback(request:Request,callback:schemas.GitHubCallBack,db: Se
                                         "name": github_user.get("name"),"bio": github_user.get("bio"),"location": github_user.get("location")}}}
 
 @router.post("/api/auth/github/link")
+@limiter.limit("5/hour")
 async def link_github_account(request: Request,link_request: schemas.OAuthLink,current_user=Depends(JWTUtil.get_user),db: Session = Depends(get_db)):
     access_token=await github_oauth.exchange_code_for_token(link_request.code)
     if not access_token:
@@ -75,6 +81,7 @@ async def link_github_account(request: Request,link_request: schemas.OAuthLink,c
     return {"message": "GitHub account successfully linked","github_username": github_user.get("login")}
 
 @router.delete("/api/auth/github/unlink")
+@limiter.limit("5/hour")
 async def unlink_github_account(request: Request,current_user=Depends(JWTUtil.get_user),db: Session = Depends(get_db)):
     if not current_user.password:
         oauth_accounts=crud.get_user_oauth_account(db,current_user.id)
@@ -87,6 +94,7 @@ async def unlink_github_account(request: Request,current_user=Depends(JWTUtil.ge
     return {"message": "GitHub account successfully unlinked"}
 
 @router.get("/api/auth/oauth/accounts")
+@limiter.limit("30/minute")
 async def get_linked_accounts(request: Request,current_user=Depends(JWTUtil.get_user),db: Session = Depends(get_db)):
     oauth_accounts = crud.get_user_oauth_account(db, current_user.id)
     return {"linked_accounts": [{"provider": account.provider,"linked_at": account.created_at.isoformat()}
