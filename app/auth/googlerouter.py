@@ -73,12 +73,8 @@ async def google_callback(request: Request,callback: schemas.GoogleCallBack,db: 
 async def link_google_account(request: Request,link_request: schemas.OAuthLink,current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     access_token = await google_oauth.exchange_code_for_token(link_request.code)
     if not access_token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to exchange authorization code"
-        )
-    google_user = await google_oauth.get_user_info(access_token)
-    
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Failed to exchange auth code")
+    google_user=await google_oauth.get_user_info(access_token)
     if not google_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Failed to get user info")
     provider_user_id = str(google_user["id"])
