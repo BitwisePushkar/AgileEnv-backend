@@ -100,7 +100,7 @@ class RefreshToken(BaseModel):
 
 class OTPRequest(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
-    purpose: str = Field(..., example="registration")
+    purpose: str = Field(..., example="registration or password_reset")
     
     @field_validator('purpose')
     @classmethod

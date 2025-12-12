@@ -15,7 +15,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 csrf_states = {}
 
-@router.get("/api/auth/google/login")
+@router.get("/api/auth/google/login/")
 @limiter.limit("10/minute")
 async def google_login(request: Request):
     state=secrets.token_urlsafe(32)
@@ -24,7 +24,7 @@ async def google_login(request: Request):
     logger.info("Generated Google authorization URL")
     return {"authorization_url": auth_url,"message": "Redirect user to this URL"}
 
-@router.post("/api/auth/google/callback", response_model=schemas.GoogleAuthResponse)
+@router.post("/api/auth/google/callback/", response_model=schemas.GoogleAuthResponse)
 @limiter.limit("10/minute")
 async def google_callback(request: Request,callback: schemas.GoogleCallBack,db: Session = Depends(get_db)):
     try:
@@ -68,8 +68,8 @@ async def google_callback(request: Request,callback: schemas.GoogleCallBack,db: 
                      "google_profile": {"name": google_user.get("name"),"picture": google_user.get("picture"),
                                         "email": google_user.get("email")}}}
 
-@router.post("/api/auth/google/link")
-@limiter.limit("5/hour")
+@router.post("/api/auth/google/link/")
+@limiter.limit("5/minute")
 async def link_google_account(request: Request,link_request: schemas.OAuthLink,current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     access_token = await google_oauth.exchange_code_for_token(link_request.code)
     if not access_token:
@@ -85,8 +85,8 @@ async def link_google_account(request: Request,link_request: schemas.OAuthLink,c
     logger.info(f"User {current_user.email} linked Google account")
     return {"message": "Google account successfully linked","google_email": google_user.get("email")}
 
-@router.delete("/api/auth/google/unlink")
-@limiter.limit("5/hour")
+@router.delete("/api/auth/google/unlink/")
+@limiter.limit("5/minute")
 async def unlink_google_account(request: Request,current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     if not current_user.password:
         oauth_accounts=crud.get_user_oauth_account(db, current_user.id)

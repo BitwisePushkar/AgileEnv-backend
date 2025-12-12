@@ -18,7 +18,7 @@ router = APIRouter()
 logger=logging.getLogger(__name__)
 
 @router.post("/api/register/", status_code=status.HTTP_201_CREATED,response_model=schemas.OTPResponse)
-@limiter.limit("5/hour")
+@limiter.limit("5/minute")
 def register(request:Request,user:schemas.UserCreate,db:Session=Depends(get_db)):
     exist_user = crud.user_exist(db, user.email)
     if exist_user:
@@ -45,8 +45,8 @@ def verify_registration(request:Request,otp:schemas.OTPVerify,db:Session=Depends
     logger.info(f"email sucessfully verified")
     return {"message":"email verified successfully","email":user.email}
 
-@router.post("/api/resend-otp-registration/",response_model=schemas.OTPResponse)
-@limiter.limit("5/hour")
+@router.post("/api/resend-otp/",response_model=schemas.OTPResponse)
+@limiter.limit("5/minute")
 def resend_otp(request:Request,req:schemas.OTPRequest,db:Session=Depends(get_db)):
     user=crud.get_user_email(db,req.email)
     if req.purpose=="registration":
@@ -123,7 +123,7 @@ def logout(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user
     return{"message":"Successfull logout"}
 
 @router.put("/api/deactivate/")
-@limiter.limit("5/hour")
+@limiter.limit("5/minute")
 def deactivate(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),
                   db:Session=Depends(get_db)):
     deactivate=crud.deactivate_user(db,current_user.email)
@@ -134,7 +134,7 @@ def deactivate(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_
     return{"message":"successfully deactivated","email":current_user.email}
 
 @router.delete("/api/delete/")
-@limiter.limit("3/hour")
+@limiter.limit("3/minute")
 def delete(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),
                   db:Session=Depends(get_db)):
     crud.add_token_blacklist(db,token)
@@ -145,7 +145,7 @@ def delete(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user
     return{"message":"successfully deleted account","email":current_user.email}
 
 @router.post("/api/forget-password/",response_model=schemas.OTPResponse)
-@limiter.limit("5/hour")
+@limiter.limit("5/minute")
 def forget_password(request: Request,req:schemas.EmailRequest,db:Session=Depends(get_db)):
     user=crud.user_exist(db,req.email)
     if not user:
@@ -173,7 +173,7 @@ def verify_reset_otp(request: Request,data:schemas.PasswordResetRequest,db:Sessi
     logger.info(f"Password reset token generated for: {data.email}")
     return{"message":"otp verified","reset_token":reset_token,"expires_in":300}
 
-@router.put("/api/complete-reset")
+@router.put("/api/complete-reset/")
 @limiter.limit("5/minute")
 def complete_reset(request:Request,data:schemas.PasswordResetComplete,db:Session=Depends(get_db)):
     payload=JWTUtil.decode_token(data.reset_token)
