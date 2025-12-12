@@ -42,8 +42,20 @@ class UserCreate(BaseModel):
         return v
     
 class UserLogin(BaseModel):
-    email:EmailStr=Field(...,example="hell12@gmail.com")
-    password:str=Field(...,example="hell")
+    username:str=Field(...,example="user@example.com", description="Email or username")
+    password:str=Field(...,example="Hell123#", min_length=4)
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v):
+        if not v or len(v.strip())==0:
+            raise ValueError('Username/email cannot be empty')
+        return v.strip()
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError('Password cannot be empty')
+        return v
 
 class EmailRequest(BaseModel):
     email:EmailStr=Field(...,example="hell12@gmail.com")
