@@ -1,8 +1,12 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.auth.models import User,TokenBlackList,OTP,OAuthAccount
 from app.auth.schemas import UserCreate
 from datetime import datetime, timezone, timedelta
 from random import randint
+from fastapi import HTTPException,status
+import logging
+logger=logging.getLogger(__name__)
 
 def user_exist(db: Session, email: str):
     return db.query(User).filter(User.email==email,User.is_active==True).first()
@@ -24,16 +28,31 @@ def save_user_unverified(user:UserCreate,db:Session,hash_pwd:str):
     return db_user
 
 def create_oauth_user(db:Session,email:str,username:str,provider:str,provider_user_id:str):
-    db_user=User(email=email,password=None,username=username,created_at=datetime.now(timezone.utc),
-                 is_active=True,is_verified=True)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    oauth_account=OAuthAccount(user_id=db_user.id,provider=provider,provider_user_id=provider_user_id,
-                               created_at=datetime.now(timezone.utc))
-    db.add(oauth_account)
-    db.commit()
-    return db_user
+    original=username
+    counter=1
+    while True:
+        try:
+            db_user = User(email=email,password=None, username=username,created_at=datetime.now(timezone.utc),
+                           is_active=True,is_verified=True)
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            oauth_account = OAuthAccount(user_id=db_user.id,provider=provider,provider_user_id=provider_user_id,
+                                         created_at=datetime.now(timezone.utc))
+            db.add(oauth_account)
+            db.commit()
+            return db_user
+        except IntegrityError as e:
+            db.rollback()
+            if 'username' in str(e.orig).lower() or 'UserName' in str(e.orig):
+                username = f"{original}{counter}"
+                counter += 1
+                if counter > 100:
+                    logger.error(f"Failed to generate unique username after 100 attempts for: {original}")
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Unable to generate unique username.")
+            else:
+                logger.error(f"Unexpected IntegrityError during OAuth user creation: {e}")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Account creation failed.")
 
 def get_user_oauth(db:Session,provider:str,provider_user_id:str):
     oauth_account=db.query(OAuthAccount).filter(OAuthAccount.provider==provider,OAuthAccount.provider_user_id==provider_user_id).first()
