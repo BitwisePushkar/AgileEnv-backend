@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends,Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.auth import schemas 
 from app.auth import crud
 from app.utils.dbUtil import get_db
@@ -23,8 +24,22 @@ def register(request:Request,user:schemas.UserCreate,db:Session=Depends(get_db))
     exist_user = crud.user_exist(db, user.email)
     if exist_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered")
+    exist_username=crud.get_user_and_username(db,user.username)
+    if exist_username:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="username already taken")
     pwd_hash = hash_pwd(user.password)
-    db_user = crud.save_user_unverified(user,db,pwd_hash)
+    try:
+        db_user = crud.save_user_unverified(user,db,pwd_hash)
+    except IntegrityError as e:
+        db.rollback()
+        error_msg = str(e.orig).lower()
+        if 'email' in error_msg or 'Email' in str(e.orig):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered")
+        elif 'username' in error_msg or 'UserName' in str(e.orig):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Username already taken.")
+        else:
+            logger.error(f"Database integrity error during registration: {e}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Registration failed. Please try again.")
     is_locked,minutes_remaining=crud.is_otp_locked(db,user.email,"registration")
     if is_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=f"Too many failed OTP attempts.Try again in {minutes_remaining} minutes.")
