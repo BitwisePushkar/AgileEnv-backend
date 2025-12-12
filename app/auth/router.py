@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, status, Depends,Request
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.auth import schemas 
@@ -97,21 +96,20 @@ def resend_otp(request:Request,req:schemas.OTPRequest,db:Session=Depends(get_db)
 
 @router.post("/api/login/",status_code=status.HTTP_200_OK,response_model=schemas.Token)
 @limiter.limit("10/minute")
-def login(request:Request,form_data:OAuth2PasswordRequestForm=Depends(),db:Session=Depends(get_db)):
-    db_user=crud.get_user_and_username(db,form_data.username)
+def login(request:Request,data:schemas.UserLogin,db:Session=Depends(get_db)):
+    db_user=crud.get_user_and_username(db,data.username)
     if not db_user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username/Email or Password",
-                            headers={"WWW-Authenticate":"Bearer"})
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username/Email or Password")
     if not db_user.is_verified:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="email not verified")
-    if not verify_pass(form_data.password,db_user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username/Email or Password",
-                            headers={"WWW-Authenticate":"Bearer"})
+    if not verify_pass(data.password,db_user.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username/Email or Password")
     if not db_user.is_active:
         crud.reactivate_user(db,db_user.email)
         logger.info(f"Account reactivated on login: {db_user.email}")
     access_token=JWTUtil.create_token(data={"sub":db_user.email,"user_id":db_user.id})
     refresh_token=JWTUtil.refresh_token(data={"sub":db_user.email,"user_id":db_user.id})
+    logger.info(f"User logged in successfully: {db_user.email}")
     return {"access_token":access_token,"refresh_token": refresh_token,"token_type":"Bearer"}
 
 @router.post("/api/refresh/",response_model=schemas.Token)
@@ -127,7 +125,8 @@ def refresh_token(request:Request,refresh:schemas.RefreshToken,db:Session=Depend
     if not db_user or not db_user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="user not found or inactive")
     access_token=JWTUtil.create_token(data={"sub":email,"user_id":user_id})
-    return {"access_token":access_token,"token_type":"Bearer"}
+    new_refresh=JWTUtil.refresh_token(data={"sub":email,"user_id":user_id})
+    return {"access_token":access_token,"refresh_token":new_refresh,"token_type":"Bearer"}
 
 @router.post("/api/logout/")
 @limiter.limit("30/minute")
@@ -163,10 +162,8 @@ def delete(request: Request,token:str=Depends(JWTUtil.oauth_schema),current_user
 @limiter.limit("5/minute")
 def forget_password(request: Request,req:schemas.EmailRequest,db:Session=Depends(get_db)):
     user=crud.user_exist(db,req.email)
-    if not user:
-        return schemas.OTPResponse(message="if email exist,otp sent",email=req.email)
-    if user.password is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="user loged in through oauth so cant change password")
+    if not user or user.password is None:
+        return schemas.OTPResponse(message="if email exists, otp sent",email=req.email)
     is_locked,minutes_remaining=crud.is_otp_locked(db, req.email, "password_reset")
     if is_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=f"Too many failed OTP attempts.Try again in {minutes_remaining} minutes.")
