@@ -1,5 +1,6 @@
+version: "3.8"
 services:
-  api:
+  web:
     build: .
     container_name: AgileEnv
     ports:
@@ -10,20 +11,15 @@ services:
       - .:/app
 
     depends_on:
-    - db
+      - db
     environment:
-    DATABASE_URL: postgres://admin:admin123@db:5432/mydb
- 
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
+      
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
-      POSTGRES_DB: mydb
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
-
 volumes:
   pgdata:

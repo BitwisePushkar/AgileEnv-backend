@@ -1,15 +1,7 @@
-FROM python:3.11-slim
+FROM python:3.11
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ADD requirements.txt .
 
-WORKDIR /app
+RUN pip install --trusted-host pypi.python.org -r requirements.txt 
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-EXPOSE 8000
-
-CMD ["uvicorn","app.main:app","--reload","--host","0.0.0.0","--port","8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
