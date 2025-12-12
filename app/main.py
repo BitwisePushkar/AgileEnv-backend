@@ -29,7 +29,7 @@ app.add_middleware(
 )
 
 @app.get("/")
-@limiter.limit("5/minute")
+@limiter.limit("100/minute")
 def root(request:Request):
     return {"message": "Welcome to Alige Backend"}
 

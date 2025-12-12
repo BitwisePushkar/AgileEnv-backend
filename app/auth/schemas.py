@@ -1,10 +1,11 @@
 from pydantic import BaseModel,Field,EmailStr,field_validator
+from typing import Literal
 import re
 
 class UserCreate(BaseModel):
     email:EmailStr=Field(...,example="hell12@gmail.com")
-    password:str=Field(...,example="hell")
-    password2: str=Field(...,example="hell123")
+    password:str=Field(...,example="hell123#")
+    password2: str=Field(...,example="hell123#")
     username:str=Field(...,example="Hellboy")
     
     @field_validator('password')
@@ -48,7 +49,24 @@ class EmailRequest(BaseModel):
 class PasswordResetRequest(BaseModel):
     email:str=Field(...,example="hell12@gmail.com")
     otp:str=Field(...,example="123456",min_length=6,max_length=6)
-    password:str=Field(...,example="hell")
+    @field_validator('otp')
+    @classmethod
+    def validate_otp(cls, v):
+        if not v.isdigit():
+            raise ValueError('OTP must contain only digits')
+        if len(v) != 6:
+            raise ValueError('OTP must be exactly 6 digits')
+        return v
+    
+class PasswordResetToken(BaseModel):
+    message:str
+    reset_token:str
+    expire_in:int=300
+    
+class PasswordResetComplete(BaseModel):
+    reset_token:str=Field(...,example="abc123xyz")
+    password:str=Field(...,example="hell123#")
+    password2: str=Field(...,example="hell123#")
 
     @field_validator('password')
     @classmethod
@@ -65,21 +83,13 @@ class PasswordResetRequest(BaseModel):
             raise ValueError("Password must contain at least one special character.")
         return v
     
-    @field_validator('otp')
+    @field_validator('password2')
     @classmethod
-    def validate_otp(cls,v):
-        if not v.isdigit():
-            raise ValueError('OTP must have digits')
+    def passwords(cls, v, info):
+        if 'password' in info.data and v != info.data['password']:
+            raise ValueError('Passwords do not match')
         return v
     
-class UserList(BaseModel):
-    id: int
-    email: EmailStr
-    username: str
-    
-    class Config:
-        from_attributes = True
-
 class Token(BaseModel):
     access_token:str
     refresh_token:str=None
@@ -123,7 +133,7 @@ class OTPVerify(BaseModel):
 class OTPResponse(BaseModel):
     message: str
     email: EmailStr
-
+    
 class GitHubAuthResponse(BaseModel):
     access_token:str
     refresh_token:str
@@ -135,7 +145,7 @@ class GitHubCallBack(BaseModel):
     state:str=Field(...,description="protection state")
 
 class OAuthLink(BaseModel):
-    code:str=Field(...,description="auth code by github")
+    code:str=Field(...,description="auth code for oauth")
 
 class GoogleAuthResponse(BaseModel):
     access_token:str
