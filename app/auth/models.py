@@ -1,7 +1,7 @@
 from sqlalchemy import Column,Integer,String,DateTime,Boolean,ForeignKey,UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
 
 Base=declarative_base()
 
@@ -47,3 +47,14 @@ class OTP(Base):
     failed_attempt=Column("failed_attempt",Integer,default=0)
     max_attempt=Column("max_attempt",Integer,default=5)
     locked_until=Column("locked_until",DateTime,nullable=True)
+
+class OAuthState(Base):
+    __tablename__="oauth"
+    id=Column(Integer,primary_key=True,index=True)
+    state=Column(String(255),unique=True,index=True,nullable=False)
+    platform=Column(String(20),nullable=False)  
+    provider=Column(String(20),nullable=False) 
+    created_at=Column(DateTime,default=datetime.utcnow,nullable=False)
+    expires_at=Column(DateTime,nullable=False)
+    def is_expired(self):
+        return datetime.utcnow()>self.expires_at

@@ -10,26 +10,25 @@ import logging
 import secrets
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from urllib.parse import urlencode
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 logger = logging.getLogger(__name__)
-csrf_states = {}
 
 @router.get("/api/auth/github/login/")
 @limiter.limit("10/minute")
-async def github_login(request: Request,platform: Literal["web", "mobile"] = Query(default="web", description="Platform type")):
+async def github_login(request: Request,platform:Literal["web","mobile"]=Query(default="web"),db:Session=Depends(get_db)):
+    crud.exp_state(db)
     state = secrets.token_urlsafe(32)
-    csrf_states[state] = {"platform": platform} 
+    crud.create_state(db=db,state=state,platform=platform,provider="github",exp_min=10)
     auth_url = github_oauth.get_authorized_url(state=state, platform=platform)
     logger.info(f"Generated GitHub authorization URL for {platform}")
     return {"authorization_url": auth_url,"message": "Redirect user to this URL","platform": platform}
 
 @router.post("/api/auth/github/callback/")
 @limiter.limit("10/minute")
-async def github_callback(request: Request,callback: schemas.GitHubCallBack,platform: Literal["web", "mobile"] = Query(default="mobile", description="Platform type"),db: Session = Depends(get_db)):
-    state_data = csrf_states.pop(callback.state, None)
+async def github_callback(request:Request,callback:schemas.GitHubCallBack,platform:Literal["web","mobile"]=Query(default="mobile"),db:Session=Depends(get_db)):
+    state_data = crud.get_delete_state(db=db,state=callback.state,provider="github")
     if not state_data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Invalid or expired state parameter")
     access_token = await github_oauth.exchange_code_for_token(callback.code, platform=platform)
