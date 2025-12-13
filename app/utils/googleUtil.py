@@ -16,7 +16,7 @@ class GoogleOAuth:
     def __init__(self):
         self.client_id=settings.GOOGLE_CLIENT_ID
         self.client_secret=settings.GOOGLE_CLIENT_SECRET
-        self.redirect_uri=settings.GOOGLE_REDIRECT_URI
+        self.redirect_uri=settings.GOOGLE_REDIRECT_URI_WEB
         self.authorize_url="https://accounts.google.com/o/oauth2/v2/auth"
         self.token_url="https://oauth2.googleapis.com/token"
         self.user_info_url="https://www.googleapis.com/oauth2/v2/userinfo"
