@@ -17,17 +17,24 @@ class Settings(BaseSettings):
     SMTP_USER : str
     SMTP_PASSWORD : str
     FROM_EMAIL : str
-    GITHUB_CLIENT_ID:str
-    GITHUB_CLIENT_SECRET:str
-    GITHUB_REDIRECT_URI:str
+    GITHUB_CLIENT_ID_WEB: str
+    GITHUB_CLIENT_SECRET_WEB: str
+    GITHUB_REDIRECT_URI_WEB: str
+    GITHUB_CLIENT_ID_MOBILE: str
+    GITHUB_CLIENT_SECRET_MOBILE: str
+    GITHUB_REDIRECT_URI_MOBILE: str
+    GOOGLE_CLIENT_ID:str
+    GOOGLE_CLIENT_SECRET:str
+    GOOGLE_REDIRECT_URI_WEB:str
+    GOOGLE_REDIRECT_URI_MOBILE:str
+    FRONTEND_WEB_URL:str
+    FRONTEND_MOBILE_SCHEME:str
+    
 
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
-    GOOGLE_REDIRECT_URI_WEB: str
-    GOOGLE_REDIRECT_URI_MOBILE: str
-
+    GOOGLE_REDIRECT_URI: str
 
     class Config:
         env_file="app/.env"
         env_file_encoding="utf-8"
-
