@@ -1,7 +1,14 @@
-FROM python:3.11
 
-ADD requirements.txt .
+FROM python:3.11-slim
 
-RUN pip install --trusted-host pypi.python.org -r requirements.txt 
+WORKDIR /app
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+

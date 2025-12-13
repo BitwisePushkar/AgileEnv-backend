@@ -6,27 +6,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter,_rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from app.utils.dbUtil import init_db
-from contextlib import asynccontextmanager
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    yield
+limiter=Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     docs_url="/docs",
     redoc_url="/redocs",
-    title="API documentation for Agile Backend",
-    description="All APIs made for the Agile webapp- a modern and interactive Jira based webapp with multiple functionalities ",
+    title="API documentation for Alige Backend",
+    description="All APIs made for the Alige webapp- a modern and interactive Jira based webapp with multiple functionalities ",
     version="1.0",
     openapi_url="/openapi.json"
 )
-
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
+app.state.limiter=limiter
+app.add_exception_handler(RateLimitExceeded,_rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,12 +29,14 @@ app.add_middleware(
 )
 
 @app.get("/")
-def root():
-    return {"message": "Welcome to Agile Backend"}
+@limiter.limit("100/minute")
+def root(request:Request):
+    return {"message": "Welcome to Alige Backend"}
 
-@app.get("/health")
-def health_check():
-    return {"status":"OK","service": "Agile Backend","version": "1.0"}
+@app.api_route("/health",methods=["GET","HEAD"])
+@limiter.limit("200/minute")
+def health_check(request:Request):
+    return {"status":"OK","service": "Alige Backend","version": "1.0"}
 
 app.include_router(auth_router, tags=["Authentication"])
 app.include_router(github_router,tags=["Github OAuth"])
