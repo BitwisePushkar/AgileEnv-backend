@@ -20,34 +20,57 @@ logger=logging.getLogger(__name__)
 @router.post("/api/register/", status_code=status.HTTP_201_CREATED,response_model=schemas.OTPResponse)
 @limiter.limit("5/minute")
 def register(request:Request,user:schemas.UserCreate,db:Session=Depends(get_db)):
-    exist_user = crud.user_exist(db, user.email)
+    exist_user=crud.get_user_email(db, user.email)
     if exist_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered")
-    exist_username=crud.get_user_and_username(db,user.username)
-    if exist_username:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="username already taken")
-    pwd_hash = hash_pwd(user.password)
-    try:
-        db_user = crud.save_user_unverified(user,db,pwd_hash)
-    except IntegrityError as e:
-        db.rollback()
-        error_msg = str(e.orig).lower()
-        if 'email' in error_msg or 'Email' in str(e.orig):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered")
-        elif 'username' in error_msg or 'UserName' in str(e.orig):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Username already taken.")
+        if exist_user.is_verified:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered.")
         else:
-            logger.error(f"Database integrity error during registration: {e}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Registration failed. Please try again.")
-    is_locked,minutes_remaining=crud.is_otp_locked(db,user.email,"registration")
+            logger.info(f"re-registration for unverified email")
+            if exist_user.username!=user.username:
+                username_taken = crud.get_user_and_username(db, user.username)
+                if username_taken and username_taken.id!=exist_user.id:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Username already taken.")
+            pwd_hash = hash_pwd(user.password)
+            try:
+                updated_user = crud.update_user_unverified(db=db,email=user.email,username=user.username,
+                                                           pwd=pwd_hash)
+                logger.info(f"Updated unverified user: {user.email} (username: {user.username})")
+            except IntegrityError as e:
+                db.rollback()
+                error_msg = str(e.orig).lower()
+                if 'username' in error_msg or 'UserName' in str(e.orig):
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Username already taken.")
+                else:
+                    logger.error(f"Unexpected IntegrityError during update: {e}")
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Update failed.")
+            crud.delete_otp_email(db, user.email, "registration")
+    else:
+        exist_username = crud.get_user_and_username(db, user.username)
+        if exist_username:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Username already taken.")
+        pwd_hash = hash_pwd(user.password)
+        try:
+            db_user = crud.save_user_unverified(user, db, pwd_hash)
+            logger.info("new user registered")
+        except IntegrityError as e:
+            db.rollback()
+            error_msg = str(e.orig).lower()
+            if 'email' in error_msg:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered")
+            elif 'username' in error_msg:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Username already taken.")
+            else:
+                logger.error(f"Database integrity error")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Registration failed.")
+    is_locked, min_left = crud.is_otp_locked(db, user.email, "registration")
     if is_locked:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=f"Too many failed OTP attempts.Try again in {minutes_remaining} minutes.")
-    otp=crud.create_otp(db,user.email,"registration")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=f"Too many OTP requests. Please try again in {min_left} minutes.")
+    otp = crud.create_otp(db, user.email, "registration")
     if otp is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="unable to send otp")
-    send_otp_email(user.email,otp,"registration",user.username)
-    logger.info(f"Registration OTP sent to: {user.email}")
-    return {"message":"sent email successfully","email":user.email}
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Unable to send OTP.")
+    send_otp_email(user.email, otp, "registration", user.username)
+    logger.info(f"OTP sent to: {user.email}")
+    return {"message": "Verification email sent successfully.","email": user.email}
 
 @router.post("/api/verify-registration/",response_model=schemas.OTPResponse)
 @limiter.limit("10/minute")

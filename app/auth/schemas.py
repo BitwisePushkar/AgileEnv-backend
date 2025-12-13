@@ -75,7 +75,7 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetToken(BaseModel):
     message:str
     reset_token:str
-    expire_in:int=300
+    expires_in:int=300
     
 class PasswordResetComplete(BaseModel):
     reset_token:str=Field(...,example="abc123xyz")
