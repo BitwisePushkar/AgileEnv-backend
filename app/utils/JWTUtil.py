@@ -56,7 +56,7 @@ def get_user(token:str=Depends(oauth_schema),db:Session=Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="couldn't validate credentials",headers={"WWW-Authenticate":"Bearer"})
     return user
 
-def active_user(current=Depends("get_user")):
+def active_user(current=Depends(get_user)):
     if current.is_active == False:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="invalid user")
     return current
