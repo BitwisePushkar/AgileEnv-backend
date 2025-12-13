@@ -11,8 +11,8 @@ class UserCreate(BaseModel):
     @field_validator('password')
     @classmethod
     def val_password(cls, v):
-        if len(v) < 8 or len(v) > 128:
-            raise ValueError("Password must be at least 8 characters.")
+        if len(v) < 8 or len(v) > 50:
+            raise ValueError("Password must be at least 8 characters and max 50 characters.")
         if not re.search(r'[A-Z]', v):
             raise ValueError("Password must contain at least one uppercase letter.")
         if not re.search(r'[a-z]', v):
@@ -35,13 +35,27 @@ class UserCreate(BaseModel):
     def validate_username(cls, v):
         if len(v)<3 or len(v)>50:
             raise ValueError("Username must be 3-50 characters")
-        if not re.match(r'^[a-zA-Z0-9_]+$', v):
-            raise ValueError("Username can only contain letters, numbers, and underscores")
+        if not re.match(r'^[a-zA-Z0-9_@]+$', v):
+            raise ValueError("Username can only contain letters, numbers, underscores and @")
+        if v[0].isdigit():
+            raise ValueError("Username cannot start with a number")
         return v
     
 class UserLogin(BaseModel):
-    email:EmailStr=Field(...,example="hell12@gmail.com")
-    password:str=Field(...,example="hell")
+    username:str=Field(...,example="user@example.com", description="Email or username")
+    password:str=Field(...,example="Hell123#", min_length=4)
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v):
+        if not v or len(v.strip())==0:
+            raise ValueError('Username/email cannot be empty')
+        return v.strip()
+    @field_validator('password')
+    @classmethod
+    def validate_password(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError('Password cannot be empty')
+        return v
 
 class EmailRequest(BaseModel):
     email:EmailStr=Field(...,example="hell12@gmail.com")
@@ -61,7 +75,7 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetToken(BaseModel):
     message:str
     reset_token:str
-    expire_in:int=300
+    expires_in:int=300
     
 class PasswordResetComplete(BaseModel):
     reset_token:str=Field(...,example="abc123xyz")
@@ -100,7 +114,7 @@ class RefreshToken(BaseModel):
 
 class OTPRequest(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
-    purpose: str = Field(..., example="registration")
+    purpose: str = Field(..., example="registration or password_reset")
     
     @field_validator('purpose')
     @classmethod

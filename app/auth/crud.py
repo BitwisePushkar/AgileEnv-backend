@@ -1,11 +1,15 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.auth.models import User,TokenBlackList,OTP,OAuthAccount
 from app.auth.schemas import UserCreate
 from datetime import datetime, timezone, timedelta
 from random import randint
+from fastapi import HTTPException,status
+import logging
+logger=logging.getLogger(__name__)
 
 def user_exist(db: Session, email: str):
-    return db.query(User).filter(User.email==email,User.is_active==True).first()
+    return db.query(User).filter(User.email==email,User.is_active==True,User.is_verified == True).first()
 
 def save_user(user:UserCreate,db:Session,hash_pwd:str):
     db_user=User(email=user.email,password=hash_pwd,username=user.username,
@@ -23,17 +27,49 @@ def save_user_unverified(user:UserCreate,db:Session,hash_pwd:str):
     db.refresh(db_user)
     return db_user
 
+def update_user_unverified(db:Session,email:str,username:str,pwd:str):
+    user=db.query(User).filter(User.email==email,User.is_verified==False).first()
+    if user:
+        user.username=username
+        user.password=pwd
+        user.created_at=datetime.now(timezone.utc)
+        user.is_active=True
+        db.commit()
+        db.refresh(user)
+        return user
+    return None
+
+def delete_otp_email(db:Session, email:str, purpose:str):
+    delete=db.query(OTP).filter(OTP.email == email,OTP.purpose == purpose).delete()
+    db.commit()
+    return delete
+
 def create_oauth_user(db:Session,email:str,username:str,provider:str,provider_user_id:str):
-    db_user=User(email=email,password=None,username=username,created_at=datetime.now(timezone.utc),
-                 is_active=True,is_verified=True)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    oauth_account=OAuthAccount(user_id=db_user.id,provider=provider,provider_user_id=provider_user_id,
-                               created_at=datetime.now(timezone.utc))
-    db.add(oauth_account)
-    db.commit()
-    return db_user
+    original=username
+    counter=1
+    while True:
+        try:
+            db_user = User(email=email,password=None, username=username,created_at=datetime.now(timezone.utc),
+                           is_active=True,is_verified=True)
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            oauth_account = OAuthAccount(user_id=db_user.id,provider=provider,provider_user_id=provider_user_id,
+                                         created_at=datetime.now(timezone.utc))
+            db.add(oauth_account)
+            db.commit()
+            return db_user
+        except IntegrityError as e:
+            db.rollback()
+            if 'username' in str(e.orig).lower() or 'UserName' in str(e.orig):
+                username = f"{original}{counter}"
+                counter += 1
+                if counter > 100:
+                    logger.error(f"Failed to generate unique username after 100 attempts for: {original}")
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Unable to generate unique username.")
+            else:
+                logger.error(f"Unexpected IntegrityError during OAuth user creation: {e}")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Account creation failed.")
 
 def get_user_oauth(db:Session,provider:str,provider_user_id:str):
     oauth_account=db.query(OAuthAccount).filter(OAuthAccount.provider==provider,OAuthAccount.provider_user_id==provider_user_id).first()
@@ -157,13 +193,16 @@ def create_otp(db:Session,email:str,purpose:str):
     is_locked,remaining_minutes=is_otp_locked(db,email,purpose)
     if is_locked:
         return None 
+    user=db.query(User).filter(User.email==email).first()
+    if not user:
+        return None
     otp_code  = randint(100000,999999)
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(minutes=10)
 
     db.query(OTP).filter(OTP.email==email,OTP.purpose==purpose).delete()
 
-    db_otp = OTP(email=email,otp_code=str(otp_code),purpose=purpose,created_at=created_at,
+    db_otp = OTP(user_id=user.id,email=email,otp_code=str(otp_code),purpose=purpose,created_at=created_at,
                  expires_at=expires_at,failed_attempt=0,max_attempt=5,locked_until=None)
     db.add(db_otp)
     db.commit()
@@ -186,7 +225,7 @@ def verify_and_delete_otp(db:Session,email:str,otp:str,purpose:str ):
         db_otp.locked_until = datetime.now(timezone.utc) + timedelta(minutes=10)
         db.commit()
         db.refresh(db_otp)
-        return (False,0,"no request until 30 min")
+        return (False,0,"no request until 10 min")
     db.commit()
     db.refresh(db_otp)
     remaining = db_otp.max_attempt-db_otp.failed_attempt
