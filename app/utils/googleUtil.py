@@ -1,7 +1,7 @@
 import httpx
 from functools import lru_cache
 from app import config
-from typing import Optional, Dict
+from typing import Optional,Dict,Literal
 import logging
 
 logger=logging.getLogger(__name__)
@@ -16,25 +16,28 @@ class GoogleOAuth:
     def __init__(self):
         self.client_id=settings.GOOGLE_CLIENT_ID
         self.client_secret=settings.GOOGLE_CLIENT_SECRET
-        self.redirect_uri=settings.GOOGLE_REDIRECT_URI
+        self.redirect_uri_web=settings.GOOGLE_REDIRECT_URI_WEB
+        self.redirect_uri_mobile=settings.GOOGLE_REDIRECT_URI_MOBILE
         self.authorize_url="https://accounts.google.com/o/oauth2/v2/auth"
         self.token_url="https://oauth2.googleapis.com/token"
         self.user_info_url="https://www.googleapis.com/oauth2/v2/userinfo"
     
-    def get_authorization_url(self,state:Optional[str]=None)->str:
-        params = {"client_id": self.client_id,"redirect_uri": self.redirect_uri,"response_type": "code",
+    def get_authorization_url(self,state:Optional[str]=None,platform:Literal["web","mobile"]="web")->str:
+        redirect_uri=self.redirect_uri_web if platform == "web" else self.redirect_uri_mobile
+        params = {"client_id": self.client_id,"redirect_uri": redirect_uri,"response_type": "code",
                   "scope": "openid email profile","access_type": "offline","prompt": "consent"}
         if state:
             params["state"] = state
         query_string="&".join([f"{k}={v}" for k, v in params.items()])
         return f"{self.authorize_url}?{query_string}"
-    async def exchange_code_for_token(self,code:str)->Optional[str]:
+    async def exchange_code_for_token(self,code:str,platform:Literal["web","mobile"]="web")->Optional[str]:
+        redirect_uri = self.redirect_uri_web if platform == "web" else self.redirect_uri_mobile
         try:
             async with httpx.AsyncClient() as client:
                 response=await client.post(
                     self.token_url,
                     data={"client_id": self.client_id,"client_secret": self.client_secret,
-                          "code": code,"redirect_uri": self.redirect_uri,"grant_type": "authorization_code"},
+                          "code": code,"redirect_uri": redirect_uri,"grant_type": "authorization_code"},
                           headers={"Accept": "application/json"})
                 if response.status_code == 200:
                     data = response.json()
