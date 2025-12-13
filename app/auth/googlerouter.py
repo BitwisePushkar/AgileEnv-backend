@@ -10,18 +10,17 @@ import logging
 import secrets
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from urllib.parse import urlencode
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 logger = logging.getLogger(__name__)
-csrf_states = {}
 
 @router.get("/api/auth/google/login/")
 @limiter.limit("10/minute")
-async def google_login(request: Request,platform:Literal["web","mobile"]=Query(default="web",description="Platform type")):
+async def google_login(request:Request,platform:Literal["web","mobile"]=Query(default="web"),db: Session=Depends(get_db)):
+    crud.exp_state(db)
     state=secrets.token_urlsafe(32)
-    csrf_states[state] = {"platform": platform}
+    crud.create_state(db,state,platform,"google",exp_min=10)
     auth_url = google_oauth.get_authorization_url(state=state,platform=platform)
     logger.info("Generated Google authorization URL")
     return {"authorization_url": auth_url,"message": "Redirect user to this URL","platform": platform}
@@ -29,9 +28,8 @@ async def google_login(request: Request,platform:Literal["web","mobile"]=Query(d
 @router.post("/api/auth/google/callback/", response_model=schemas.GoogleAuthResponse)
 @limiter.limit("10/minute")
 async def google_callback(request: Request,callback: schemas.GoogleCallBack,platform: Literal["web", "mobile"] = Query(default="mobile"),db: Session = Depends(get_db)):
-    try:
-        platform_info = csrf_states.pop(callback.state)
-    except KeyError:
+    state_data = crud.get_delete_state(db,callback.state,"google")
+    if not state_data:
         logger.warning(f"Invalid Google OAuth state")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Invalid or expired state parameter")
     access_token = await google_oauth.exchange_code_for_token(callback.code, platform=platform)
