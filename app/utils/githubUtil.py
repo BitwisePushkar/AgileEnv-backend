@@ -86,8 +86,7 @@ class GitHubOAuth:
                                 break
                 logger.info(f"Successfully retrieved user info for GitHub ID: {user_data.get('id')}")
                 return {"id": user_data.get("id"),"login": user_data.get("login"),"email": user_data.get("email"),
-                        "name": user_data.get("name"),"avatar_url": user_data.get("avatar_url"),"bio": user_data.get("bio"),
-                        "location": user_data.get("location"),}  
+                        "name": user_data.get("name")}  
         except Exception as e:
             logger.error(f"Error getting user info: {str(e)}")
             return None

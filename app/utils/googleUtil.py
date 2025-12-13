@@ -65,7 +65,7 @@ class GoogleOAuth:
                 user_data = user_response.json()
                 logger.info(f"Successfully retrieved Google user info for: {user_data.get('email')}")
                 return {"id": user_data.get("id"),"email": user_data.get("email"),"name": user_data.get("name"),
-                        "picture": user_data.get("picture"),"verified_email": user_data.get("verified_email", False)}
+                        "verified_email": user_data.get("verified_email", False)}
         except Exception as e:
             logger.error(f"Error getting user info: {str(e)}")
             return None
