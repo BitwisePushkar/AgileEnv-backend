@@ -170,3 +170,8 @@ class GoogleAuthResponse(BaseModel):
 class GoogleCallBack(BaseModel):
     code:str=Field(...,description="Authorization code from Google")
     state:str=Field(...,description="CSRF protection state")
+
+
+class EmailCheckResponse(BaseModel):
+    is_email: bool
+    is_verified: bool | None

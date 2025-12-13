@@ -205,3 +205,20 @@ def complete_reset(request:Request,data:schemas.PasswordResetComplete,db:Session
     crud.add_token_blacklist(db,data.reset_token)
     logger.info(f"Password reset successfully for: {email}")
     return {"message": "Password reset successfully","email":email}
+
+
+@router.post("/api/app/pre/", response_model=schemas.EmailCheckResponse)
+@limiter.limit("20/minute")
+def check_email_exists(request: Request, req: schemas.EmailRequest, db: Session = Depends(get_db)):
+    user = crud.get_user_email(db, req.email)
+    
+    if user:
+        return {
+            "is_email": True,
+            "is_verified": user.is_verified
+        }
+    else:
+        return {
+            "is_email": False,
+            "is_verified": None
+        }

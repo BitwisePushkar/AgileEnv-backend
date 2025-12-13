@@ -16,7 +16,6 @@ def pgsql_url():
         f"{settings.DB_CONNECTION}://"
         f"{settings.DB_USERNAME}:{settings.DB_PASSWORD}"
         f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_DATABASE}"
-        f"?sslmode=require"
     )
 
 

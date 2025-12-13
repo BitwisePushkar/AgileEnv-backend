@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID:str
     GOOGLE_CLIENT_SECRET:str
     GOOGLE_REDIRECT_URI:str
-    
+
 
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
@@ -32,3 +32,4 @@ class Settings(BaseSettings):
     class Config:
         env_file="app/.env"
         env_file_encoding="utf-8"
+
