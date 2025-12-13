@@ -29,12 +29,7 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI_MOBILE:str
     FRONTEND_WEB_URL:str
     FRONTEND_MOBILE_SCHEME:str
-    
-
-    GOOGLE_CLIENT_ID: str
-    GOOGLE_CLIENT_SECRET: str
-    GOOGLE_REDIRECT_URI: str
-
+ 
     class Config:
         env_file="app/.env"
         env_file_encoding="utf-8"
