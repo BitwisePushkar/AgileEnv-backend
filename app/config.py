@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI_WEB: str
+    GOOGLE_REDIRECT_URI_MOBILE: str
+
 
     class Config:
         env_file="app/.env"
