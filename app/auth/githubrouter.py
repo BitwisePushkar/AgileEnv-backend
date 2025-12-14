@@ -4,7 +4,7 @@ from app.auth import schemas, crud
 from app.utils.dbUtil import get_db
 from app.utils import JWTUtil
 from app.utils.githubUtil import github_oauth
-from app.utils.redisUtil import redis_client
+from app.utils.redisUtils import redis_client
 import logging
 import secrets
 from slowapi import Limiter
