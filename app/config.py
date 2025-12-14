@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI_MOBILE:str
     FRONTEND_WEB_URL:str
     FRONTEND_MOBILE_SCHEME:str
+    REDIS_HOST: str
+    REDIS_PORT: int
  
     class Config:
         env_file="app/.env"
