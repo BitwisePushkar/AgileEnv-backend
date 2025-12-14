@@ -4,6 +4,7 @@ from app.auth import schemas, crud
 from app.utils.dbUtil import get_db
 from app.utils import JWTUtil
 from app.utils.googleUtil import google_oauth
+from app.utils.redisUtils import redis_client
 import logging
 import secrets
 from slowapi import Limiter
@@ -13,17 +14,21 @@ limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-csrf_states = {}
+
+STATE_EXPIRY = 600
 
 
 @router.get("/api/auth/google/login/")
 @limiter.limit("10/minute")
 async def google_login(request: Request):
     state = secrets.token_urlsafe(32)
-    csrf_states[state] = True
+    redis_key = f"oauth:google:state:{state}"
+    redis_client.set_with_expiry(redis_key, "valid", STATE_EXPIRY)
+    
     auth_url = google_oauth.get_authorization_url(state=state)
     logger.info("Generated Google authorization URL")
     return {"authorization_url": auth_url, "message": "Redirect user to this URL"}
+
 
 @router.post("/api/auth/google/callback/", response_model=schemas.GoogleAuthResponse)
 @limiter.limit("10/minute")
@@ -32,13 +37,15 @@ async def google_callback(
     callback: schemas.GoogleCallBack,
     db: Session = Depends(get_db)
 ):
-    if callback.state not in csrf_states:
+    redis_key = f"oauth:google:state:{callback.state}"
+    
+    if not redis_client.exists(redis_key):
+        logger.warning(f"Invalid or expired state parameter: {callback.state}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired state parameter"
         )
-
-    del csrf_states[callback.state]
+    redis_client.delete(redis_key)
 
     access_token = await google_oauth.exchange_code_for_token(callback.code)
     if not access_token:
@@ -112,30 +119,31 @@ async def google_callback(
 
 @router.post("/api/auth/google/link/")
 @limiter.limit("5/minute")
-async def link_google_account(request: Request,link_request: schemas.OAuthLink,current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+async def link_google_account(request: Request, link_request: schemas.OAuthLink, current_user=Depends(JWTUtil.get_user), db: Session = Depends(get_db)):
     access_token = await google_oauth.exchange_code_for_token(link_request.code)
     if not access_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Failed to exchange auth code")
-    google_user=await google_oauth.get_user_info(access_token)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to exchange auth code")
+    google_user = await google_oauth.get_user_info(access_token)
     if not google_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Failed to get user info")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to get user info")
     provider_user_id = str(google_user["id"])
     exist_oauth = crud.get_user_oauth(db, "google", provider_user_id)
     if exist_oauth and exist_oauth.id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Google account already linked")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google account already linked")
     crud.link_oauth_account(db, current_user.id, "google", provider_user_id)
     logger.info(f"User {current_user.email} linked Google account")
-    return {"message": "Google account successfully linked","google_email": google_user.get("email")}
+    return {"message": "Google account successfully linked", "google_email": google_user.get("email")}
+
 
 @router.delete("/api/auth/google/unlink/")
 @limiter.limit("5/minute")
-async def unlink_google_account(request: Request,current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+async def unlink_google_account(request: Request, current_user=Depends(JWTUtil.get_user), db: Session = Depends(get_db)):
     if not current_user.password:
-        oauth_accounts=crud.get_user_oauth_account(db, current_user.id)
+        oauth_accounts = crud.get_user_oauth_account(db, current_user.id)
         if len(oauth_accounts) <= 1:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Cannot unlink the only auth method.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot unlink the only auth method.")
     success = crud.unlink_oauth_account(db, current_user.id, "google")
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Google account not linked to this user")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google account not linked to this user")
     logger.info(f"User {current_user.email} unlinked Google account")
     return {"message": "Google account successfully unlinked"}
