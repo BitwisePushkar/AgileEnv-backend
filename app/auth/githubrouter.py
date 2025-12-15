@@ -32,26 +32,33 @@ async def github_login(
     logger.info(f"Generated GitHub authorization URL for platform: {platform}")
     return {"authorization_url": auth_url, "message": "Redirect user to this URL"}
 
-
 @router.post("/api/auth/github/callback/", response_model=schemas.GitHubAuthResponse)
 @limiter.limit("10/minute")
 async def github_callback(
     request: Request,
     callback: schemas.GitHubCallBack,
+    platform: Literal["web", "mobile"] = Query(..., description="Platform from frontend"),
     db: Session = Depends(get_db)
 ):
     redis_key = f"oauth:github:state:{callback.state}"
-    platform = redis_client.get(redis_key)
-    if not platform:
+    stored_platform = redis_client.get(redis_key)
+    
+    if not stored_platform:
         logger.warning(f"Invalid or expired state parameter: {callback.state}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired state parameter"
         )
-    # redis_client.delete(redis_key)
-    if platform not in ["web", "mobile"]:
-        logger.warning(f"Invalid platform value in Redis: {platform}, defaulting to web")
-        platform = "web"
+    
+    if stored_platform != platform:
+        logger.warning(f"Platform mismatch: stored={stored_platform}, received={platform}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Platform mismatch - possible CSRF attack"
+        )
+    
+    redis_client.delete(redis_key)
+    
     access_token = await github_oauth.exchange_code_for_token(callback.code, platform=platform)
     if not access_token:
         raise HTTPException(
@@ -75,7 +82,6 @@ async def github_callback(
     else:
         user_by_email = crud.get_user_email(db, github_user["email"])
         if user_by_email:
-
             crud.link_oauth_account(db, user_by_email.id, "github", provider_user_id)
             logger.info(f"Linked GitHub account to existing user: {user_by_email.email}")
             user = user_by_email
@@ -109,14 +115,10 @@ async def github_callback(
             "username": user.username,
             "github_profile": {
                 "login": github_user.get("login"),
-                "avatar_url": github_user.get("avatar_url"),
                 "name": github_user.get("name"),
-                "bio": github_user.get("bio"),
-                "location": github_user.get("location")
             }
         }
     }
-
 
 @router.post("/api/auth/github/link/")
 @limiter.limit("5/minute")

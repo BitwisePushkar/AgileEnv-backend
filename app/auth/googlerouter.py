@@ -39,33 +39,42 @@ async def google_login(
 async def google_callback(
     request: Request,
     callback: schemas.GoogleCallBack,
+    platform: Literal["web", "mobile"] = Query(..., description="Platform from frontend"),
     db: Session = Depends(get_db)
 ):
-
     redis_key = f"oauth:google:state:{callback.state}"
-    platform = redis_client.get(redis_key)
-    if not platform:
+    stored_platform = redis_client.get(redis_key)
+    
+    if not stored_platform:
         logger.warning(f"Invalid or expired state parameter: {callback.state}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired state parameter"
         )
+    
+    if stored_platform != platform:
+        logger.warning(f"Platform mismatch: stored={stored_platform}, received={platform}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Platform mismatch - possible CSRF attack"
+        )
+    
     redis_client.delete(redis_key)
-    if platform not in ["web", "mobile"]:
-        logger.warning(f"Invalid platform value in Redis: {platform}, defaulting to web")
-        platform = "web"
+    
     access_token = await google_oauth.exchange_code_for_token(callback.code, platform=platform)
     if not access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to exchange auth code for access token"
         )
+    
     google_user = await google_oauth.get_user_info(access_token)
     if not google_user or not google_user.get("email"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to retrieve Google user info"
         )
+    
     if not google_user.get("verified_email"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -74,12 +83,15 @@ async def google_callback(
 
     provider_user_id = str(google_user["id"])
     existing_user = crud.get_user_oauth(db, "google", provider_user_id)
+    
     if existing_user:
+        logger.info(f"Google user logged in: {existing_user.email}")
         user = existing_user
     else:
         user_by_email = crud.get_user_email(db, google_user["email"])
         if user_by_email:
             crud.link_oauth_account(db, user_by_email.id, "google", provider_user_id)
+            logger.info(f"Linked Google account to existing user: {user_by_email.email}")
             user = user_by_email
         else:
             username = google_user["email"].split("@")[0]
@@ -96,6 +108,8 @@ async def google_callback(
                 provider="google",
                 provider_user_id=provider_user_id,
             )
+            logger.info(f"Created new user via Google OAuth")
+    
     jwt_access_token = JWTUtil.create_token(
         data={"sub": user.email, "user_id": user.id}
     )
