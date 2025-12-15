@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Request
+from fastapi import APIRouter, HTTPException, status, Depends, Request, Query
 from sqlalchemy.orm import Session
 from app.auth import schemas, crud
 from app.utils.dbUtil import get_db
@@ -9,6 +9,7 @@ import logging
 import secrets
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from typing import Literal
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -20,13 +21,16 @@ STATE_EXPIRY = 600
 
 @router.get("/api/auth/google/login/")
 @limiter.limit("10/minute")
-async def google_login(request: Request):
+async def google_login(
+    request: Request,
+    platform: Literal["web", "mobile"] = Query("web", description="Platform initiating OAuth: web or mobile")
+):
     state = secrets.token_urlsafe(32)
     redis_key = f"oauth:google:state:{state}"
-    redis_client.set_with_expiry(redis_key, "valid", STATE_EXPIRY)
+    redis_client.set_with_expiry(redis_key, platform, STATE_EXPIRY)
     
-    auth_url = google_oauth.get_authorization_url(state=state)
-    logger.info("Generated Google authorization URL")
+    auth_url = google_oauth.get_authorization_url(state=state, platform=platform)
+    logger.info(f"Generated Google authorization URL for platform: {platform}")
     return {"authorization_url": auth_url, "message": "Redirect user to this URL"}
 
 
@@ -37,30 +41,31 @@ async def google_callback(
     callback: schemas.GoogleCallBack,
     db: Session = Depends(get_db)
 ):
+
     redis_key = f"oauth:google:state:{callback.state}"
-    
-    if not redis_client.exists(redis_key):
+    platform = redis_client.get(redis_key)
+    if not platform:
         logger.warning(f"Invalid or expired state parameter: {callback.state}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired state parameter"
         )
     redis_client.delete(redis_key)
-
-    access_token = await google_oauth.exchange_code_for_token(callback.code)
+    if platform not in ["web", "mobile"]:
+        logger.warning(f"Invalid platform value in Redis: {platform}, defaulting to web")
+        platform = "web"
+    access_token = await google_oauth.exchange_code_for_token(callback.code, platform=platform)
     if not access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to exchange auth code for access token"
         )
-
     google_user = await google_oauth.get_user_info(access_token)
     if not google_user or not google_user.get("email"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to retrieve Google user info"
         )
-
     if not google_user.get("verified_email"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -68,7 +73,6 @@ async def google_callback(
         )
 
     provider_user_id = str(google_user["id"])
-
     existing_user = crud.get_user_oauth(db, "google", provider_user_id)
     if existing_user:
         user = existing_user
@@ -92,7 +96,6 @@ async def google_callback(
                 provider="google",
                 provider_user_id=provider_user_id,
             )
-
     jwt_access_token = JWTUtil.create_token(
         data={"sub": user.email, "user_id": user.id}
     )
@@ -119,31 +122,64 @@ async def google_callback(
 
 @router.post("/api/auth/google/link/")
 @limiter.limit("5/minute")
-async def link_google_account(request: Request, link_request: schemas.OAuthLink, current_user=Depends(JWTUtil.get_user), db: Session = Depends(get_db)):
-    access_token = await google_oauth.exchange_code_for_token(link_request.code)
+async def link_google_account(
+    request: Request,
+    link_request: schemas.OAuthLink,
+    current_user=Depends(JWTUtil.get_user),
+    db: Session = Depends(get_db),
+    platform: Literal["web", "mobile"] = Query("web", description="Platform for OAuth linking")
+):
+    access_token = await google_oauth.exchange_code_for_token(link_request.code, platform=platform)
     if not access_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to exchange auth code")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to exchange auth code"
+        )
+    
     google_user = await google_oauth.get_user_info(access_token)
     if not google_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to get user info")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to get user info"
+        )
+    
     provider_user_id = str(google_user["id"])
     exist_oauth = crud.get_user_oauth(db, "google", provider_user_id)
     if exist_oauth and exist_oauth.id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google account already linked")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account already linked to another user"
+        )
     crud.link_oauth_account(db, current_user.id, "google", provider_user_id)
     logger.info(f"User {current_user.email} linked Google account")
-    return {"message": "Google account successfully linked", "google_email": google_user.get("email")}
+    return {
+        "message": "Google account successfully linked",
+        "google_email": google_user.get("email")
+    }
 
 
 @router.delete("/api/auth/google/unlink/")
 @limiter.limit("5/minute")
-async def unlink_google_account(request: Request, current_user=Depends(JWTUtil.get_user), db: Session = Depends(get_db)):
+async def unlink_google_account(
+    request: Request,
+    current_user=Depends(JWTUtil.get_user),
+    db: Session = Depends(get_db)
+):
+
     if not current_user.password:
         oauth_accounts = crud.get_user_oauth_account(db, current_user.id)
         if len(oauth_accounts) <= 1:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot unlink the only auth method.")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot unlink the only authentication method. Set a password first."
+            )
+    
     success = crud.unlink_oauth_account(db, current_user.id, "google")
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google account not linked to this user")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Google account not linked to this user"
+        )
+    
     logger.info(f"User {current_user.email} unlinked Google account")
     return {"message": "Google account successfully unlinked"}
