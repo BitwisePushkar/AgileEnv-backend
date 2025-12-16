@@ -14,19 +14,31 @@ settings = get_settings()
 
 class GoogleOAuth:
     def __init__(self):
-        self.client_id = settings.GOOGLE_CLIENT_ID
-        self.client_secret = settings.GOOGLE_CLIENT_SECRET
+        # WEB credentials
+        self.client_id_web = settings.GOOGLE_CLIENT_ID_WEB
+        self.client_secret_web = settings.GOOGLE_CLIENT_SECRET_WEB
         self.redirect_uri_web = settings.GOOGLE_REDIRECT_URI_WEB
+        
+        # MOBILE credentials
+        self.client_id_mobile = settings.GOOGLE_CLIENT_ID_MOBILE
+        self.client_secret_mobile = settings.GOOGLE_CLIENT_SECRET_MOBILE
         self.redirect_uri_mobile = settings.GOOGLE_REDIRECT_URI_MOBILE
+        
         self.authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
         self.token_url = "https://oauth2.googleapis.com/token"
         self.user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
     
     def get_authorization_url(self, state: Optional[str] = None, platform: Literal["web", "mobile"] = "web") -> str:
-        redirect_uri = self.redirect_uri_web if platform == "web" else self.redirect_uri_mobile
+        # Choose credentials based on platform
+        if platform == "web":
+            client_id = self.client_id_web
+            redirect_uri = self.redirect_uri_web
+        else:
+            client_id = self.client_id_mobile
+            redirect_uri = self.redirect_uri_mobile
         
         params = {
-            "client_id": self.client_id,
+            "client_id": client_id,
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": "openid email profile",
@@ -41,15 +53,23 @@ class GoogleOAuth:
         return f"{self.authorize_url}?{query_string}"
     
     async def exchange_code_for_token(self, code: str, platform: Literal["web", "mobile"] = "web") -> Optional[str]:
-        redirect_uri = self.redirect_uri_web if platform == "web" else self.redirect_uri_mobile
+        # Choose credentials based on platform
+        if platform == "web":
+            client_id = self.client_id_web
+            client_secret = self.client_secret_web
+            redirect_uri = self.redirect_uri_web
+        else:
+            client_id = self.client_id_mobile
+            client_secret = self.client_secret_mobile
+            redirect_uri = self.redirect_uri_mobile
         
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     self.token_url,
                     data={
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
                         "code": code,
                         "redirect_uri": redirect_uri,
                         "grant_type": "authorization_code"
