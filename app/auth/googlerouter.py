@@ -133,6 +133,27 @@ async def google_callback(
         },
     }
     
+#testing
+from fastapi.responses import HTMLResponse
+
+@router.get("/oauth/google/mobile-bridge")
+async def google_mobile_bridge(code: str, state: str):
+    return HTMLResponse(f"""
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>This might take some seconds...</title>
+      </head>
+      <body>
+        <script>
+          window.location.href =
+            "com.agile.app://auth/google/callback" +
+            "?code={code}&state={state}";
+        </script>
+      </body>
+    </html>
+    """)
 
 
 
