@@ -206,19 +206,23 @@ def complete_reset(request:Request,data:schemas.PasswordResetComplete,db:Session
     logger.info(f"Password reset successfully for: {email}")
     return {"message": "Password reset successfully","email":email}
 
-
 @router.post("/api/app/pre/", response_model=schemas.EmailCheckResponse)
 @limiter.limit("20/minute")
 def check_email_exists(request: Request, req: schemas.EmailRequest, db: Session = Depends(get_db)):
     user = crud.get_user_email(db, req.email)
-    
     if user:
-        return {
-            "is_email": True,
-            "is_verified": user.is_verified
-        }
+        return {"is_email": True,"is_verified": user.is_verified}
     else:
-        return {
-            "is_email": False,
-            "is_verified": None
-        }
+        return {"is_email": False,"is_verified": None}
+    
+@router.post("/api/set-password/")
+@limiter.limit("5/minute")
+def set_password(request:Request,data:schemas.SetPassword,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+    if current_user.password is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Password already set. Use change password instead.")
+    pwd_hash=hash_pwd(data.password)
+    updated_user=crud.update_password_id(db,current_user.id,pwd_hash)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found")
+    logger.info(f"Password set for OAuth user: {current_user.email}")
+    return {"message": "Password set successfully.","email": current_user.email}
