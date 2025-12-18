@@ -15,8 +15,8 @@ settings = get_settings()
 
 class GoogleOAuth:
     def __init__(self):
-        self.client_id_web = settings.GOOGLE_CLIENT_ID_WEB
-        self.client_secret_web = settings.GOOGLE_CLIENT_SECRET_WEB
+        self.client_id_web = settings.GOOGLE_CLIENT_ID
+        self.client_secret_web = settings.GOOGLE_CLIENT_SECRET
         self.redirect_uri_web = settings.GOOGLE_REDIRECT_URI_WEB
         self.redirect_uri_mobile = settings.GOOGLE_REDIRECT_URI_MOBILE
         self.authorize_url = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -36,7 +36,7 @@ class GoogleOAuth:
         client_secret = self.client_secret_web
         redirect_uri = (self.redirect_uri_web if platform == "web"else self.redirect_uri_mobile)
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(self.token_url,data={"client_id": client_id,"client_secret": client_secret,"code": code,
                                                                   "redirect_uri": redirect_uri,"grant_type": "authorization_code",},headers={"Accept": "application/json"},)
             if response.status_code != 200:

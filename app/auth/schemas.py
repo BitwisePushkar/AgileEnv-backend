@@ -4,8 +4,8 @@ import re
 
 class UserCreate(BaseModel):
     email:EmailStr=Field(...,example="hell12@gmail.com")
-    password:str=Field(...,example="hell123#")
-    password2: str=Field(...,example="hell123#")
+    password:str=Field(...,example="Hell123#")
+    password2: str=Field(...,example="Hell123#")
     username:str=Field(...,example="Hellboy")
     
     @field_validator('password')
