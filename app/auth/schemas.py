@@ -1,5 +1,5 @@
 from pydantic import BaseModel,Field,EmailStr,field_validator
-from typing import Literal
+from typing import Optional
 import re
 
 class UserCreate(BaseModel):
@@ -75,7 +75,7 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetToken(BaseModel):
     message:str
     reset_token:str
-    expire_in:int=300
+    expires_in:int=300
     
 class PasswordResetComplete(BaseModel):
     reset_token:str=Field(...,example="abc123xyz")
@@ -172,8 +172,8 @@ class GoogleCallBack(BaseModel):
     state:str=Field(...,description="CSRF protection state")
 
 class EmailCheckResponse(BaseModel):
-    is_email: bool
-    is_verified: bool | None
+    is_email:bool
+    is_verified:Optional[bool]=None
 
 class SetPassword(BaseModel):
     password:str=Field(...,example="NewPass@123")
