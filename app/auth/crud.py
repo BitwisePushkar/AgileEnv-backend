@@ -230,29 +230,3 @@ def verify_and_delete_otp(db:Session,email:str,otp:str,purpose:str ):
     db.refresh(db_otp)
     remaining = db_otp.max_attempt-db_otp.failed_attempt
     return (False,remaining,f"Invalid OTP.")
-
-def create_state(db:Session,state:str,platform:str,provider:str,exp_min:int=10):
-    expires_at=datetime.utcnow()+timedelta(minutes=exp_min)
-    db_state = OAuthState(state=state,platform=platform,provider=provider,expires_at=expires_at)
-    db.add(db_state)
-    db.commit()
-    db.refresh(db_state)
-    return db_state
-
-def get_delete_state(db:Session,state:str,provider:str):
-    db_state=db.query(OAuthState).filter(OAuthState.state==state,OAuthState.provider==provider).first()
-    if not db_state:
-        return None
-    if db_state.is_expired():
-        db.delete(db_state)
-        db.commit()
-        return None
-    platform = db_state.platform
-    db.delete(db_state)
-    db.commit()
-    return {"platform": platform}
-
-def exp_state(db:Session):
-    delete=db.query(OAuthState).filter(OAuthState.expires_at<datetime.utcnow()).delete()
-    db.commit()
-    return delete
