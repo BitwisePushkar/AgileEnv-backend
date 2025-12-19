@@ -23,7 +23,10 @@ def register(request:Request,user:schemas.UserCreate,db:Session=Depends(get_db))
     exist_user=crud.get_user_email(db, user.email)
     if exist_user:
         if exist_user.is_verified:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered.")
+            if exist_user.password is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="This email is already registered via Google/GitHub login.")
+            else:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Email already registered.")
         else:
             logger.info(f"re-registration for unverified email")
             if exist_user.username!=user.username:
@@ -125,6 +128,8 @@ def login(request:Request,data:schemas.UserLogin,db:Session=Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username/Email or Password")
     if not db_user.is_verified:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="email not verified")
+    if db_user.password is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="use Google/GitHub to login.")
     if not verify_pass(data.password,db_user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid username/Email or Password")
     if not db_user.is_active:
@@ -237,3 +242,15 @@ def check_email_exists(request:Request,req:schemas.EmailRequest,db:Session=Depen
         return {"is_email": True,"is_verified": user.is_verified}
     else:
         return {"is_email": False,"is_verified": None}
+    
+@router.post("/api/set-password/")
+@limiter.limit("5/minute")
+def set_password(request:Request,data:schemas.SetPassword,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+    if current_user.password is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Password already set. Use change password instead.")
+    pwd_hash=hash_pwd(data.password)
+    updated_user=crud.update_password_id(db,current_user.id,pwd_hash)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found")
+    logger.info(f"Password set for OAuth user: {current_user.email}")
+    return {"message": "Password set successfully.","email": current_user.email}
