@@ -1,5 +1,5 @@
 from pydantic import BaseModel,Field,EmailStr,field_validator
-from typing import Literal,Optional
+from typing import Optional
 import re
 
 class UserCreate(BaseModel):

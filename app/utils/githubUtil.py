@@ -1,31 +1,31 @@
 import httpx
 from functools import lru_cache
 from app import config
-from typing import Optional,Dict,Literal
+from typing import Optional, Dict, Literal
 import logging
 
-logger=logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 @lru_cache
 def get_settings():
     return config.Settings()
 
-settings=get_settings()
+settings = get_settings()
 
 class GitHubOAuth:
     def __init__(self):
-        self.client_id_web=settings.GITHUB_CLIENT_ID_WEB
-        self.client_secret_web=settings.GITHUB_CLIENT_SECRET_WEB
-        self.redirect_uri_web=settings.GITHUB_REDIRECT_URI_WEB
-        self.client_id_mobile=settings.GITHUB_CLIENT_ID_MOBILE
-        self.client_secret_mobile=settings.GITHUB_CLIENT_SECRET_MOBILE
-        self.redirect_uri_mobile=settings.GITHUB_REDIRECT_URI_MOBILE
-        self.authorize_url="https://github.com/login/oauth/authorize"
-        self.token_url="https://github.com/login/oauth/access_token"
-        self.user_api_url="https://api.github.com/user"
-        self.user_emails_url="https://api.github.com/user/emails"
+        self.client_id_web = settings.GITHUB_CLIENT_ID_WEB
+        self.client_secret_web = settings.GITHUB_CLIENT_SECRET_WEB
+        self.redirect_uri_web = settings.GITHUB_REDIRECT_URI_WEB
+        self.client_id_mobile = settings.GITHUB_CLIENT_ID_MOBILE
+        self.client_secret_mobile = settings.GITHUB_CLIENT_SECRET_MOBILE
+        self.redirect_uri_mobile = settings.GITHUB_REDIRECT_URI_MOBILE
+        self.authorize_url = "https://github.com/login/oauth/authorize"
+        self.token_url = "https://github.com/login/oauth/access_token"
+        self.user_api_url = "https://api.github.com/user"
+        self.user_emails_url = "https://api.github.com/user/emails"
 
-    def get_authorized_url(self, state:Optional[str] = None, platform:Literal["web", "mobile"] = "web") -> str:
+    def get_authorized_url(self, state: Optional[str] = None, platform: Literal["web", "mobile"] = "web") -> str:
         if platform == "web":
             client_id = self.client_id_web
             redirect_uri = self.redirect_uri_web
@@ -47,15 +47,16 @@ class GitHubOAuth:
             client_id = self.client_id_mobile
             client_secret = self.client_secret_mobile
             redirect_uri = self.redirect_uri_mobile
+        
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(self.token_url,data={"client_id": client_id,"client_secret": client_secret,"code": code,
-                                                                  "redirect_uri": redirect_uri,},headers={"Accept": "application/json"})
+                                                                  "redirect_uri": redirect_uri,},headers={"Accept": "application/json"}) 
                 if response.status_code == 200:
                     data = response.json()
                     access_token = data.get("access_token")
                     if access_token:
-                        logger.info(f"Successfully got GitHub access token for {platform}")
+                        logger.info(f"Successfully obtained GitHub access token for platform: {platform}")
                         return access_token
                     else:
                         logger.error(f"No access token in response: {data}")
@@ -66,11 +67,10 @@ class GitHubOAuth:
         except Exception as e:
             logger.error(f"Error exchanging code for token: {str(e)}")
             return None
-    
-    async def get_user_info(self,access_token:str)->Optional[Dict]:
+    async def get_user_info(self, access_token: str) -> Optional[Dict]:
         try:
             async with httpx.AsyncClient() as client:
-                headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+                headers = {"Authorization": f"Bearer {access_token}","Accept": "application/json"}
                 user_response = await client.get(self.user_api_url, headers=headers)
                 if user_response.status_code != 200:
                     logger.error(f"Failed to get user info: {user_response.status_code}")
@@ -86,7 +86,7 @@ class GitHubOAuth:
                                 break
                 logger.info(f"Successfully retrieved user info for GitHub ID: {user_data.get('id')}")
                 return {"id": user_data.get("id"),"login": user_data.get("login"),"email": user_data.get("email"),
-                        "name": user_data.get("name")}  
+                        "name": user_data.get("name"),}  
         except Exception as e:
             logger.error(f"Error getting user info: {str(e)}")
             return None
