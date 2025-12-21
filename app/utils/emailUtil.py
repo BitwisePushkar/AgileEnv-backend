@@ -66,3 +66,37 @@ def send_otp_email(email: str, otp: str, purpose: str, username: str = "User"):
     except Exception as e:
         print(f"Email error: {str(e)}")
         return False
+    
+def workspace_invitation(email:str,name:str,code:str,admin: str):
+    html=f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #4a5568;">Workspace Invitation</h2>
+                <p>Hello,</p>
+                <p><strong>{admin}</strong> has invited you to join the workspace:</p>
+                <div style="background-color: #f7fafc; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                    <h3 style="margin: 0 0 10px 0; color: #2d3748;">{name}</h3>
+                    <p style="margin: 5px 0;"><strong>Security Code:</strong> 
+                        <code style="background-color: #edf2f7; padding: 5px 10px; border-radius: 3px; font-size: 16px;">
+                            {code}
+                        </code>
+                    </p>
+                </div>
+                <p>Use this security code to join the workspace through your application.</p>
+                <p style="color: #718096; font-size: 14px; margin-top: 30px;">
+                    If you didn't expect this invitation, you can safely ignore this email.
+                </p>
+            </div>
+        </body>
+    </html>
+    """
+    message = Mail(from_email=FROM_EMAIL,to_emails=email,subject=f"Invitation to join {name}",html_content=html)
+    try:
+        sg = SendGridAPIClient(API_KEY)
+        response = sg.send(message)
+        print(f"Email sent to {email} - Status: {response.status_code}")
+        return True
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+        return False

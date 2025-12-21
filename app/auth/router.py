@@ -11,6 +11,7 @@ import logging
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import timedelta
+from app.auth.models import User
 
 limiter=Limiter(key_func=get_remote_address)
 
@@ -76,7 +77,7 @@ def register(request:Request,user:schemas.UserCreate,db:Session=Depends(get_db))
     return {"message": "Verification email sent successfully.","email": user.email}
 
 @router.post("/api/verify-registration/",response_model=schemas.OTPResponse)
-@limiter.limit("10/minute")
+@limiter.limit("5/minute")
 def verify_registration(request:Request,otp:schemas.OTPVerify,db:Session=Depends(get_db)):
     is_valid,attempts_remaining,error_message=crud.verify_and_delete_otp(db,otp.email,otp.otp_code,otp.purpose)
     if not is_valid:
@@ -245,7 +246,7 @@ def check_email_exists(request:Request,req:schemas.EmailRequest,db:Session=Depen
     
 @router.post("/api/set-password/")
 @limiter.limit("5/minute")
-def set_password(request:Request,data:schemas.SetPassword,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+def set_password(request:Request,data:schemas.SetPassword,token:str=Depends(JWTUtil.oauth_schema),current_user:User=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     if current_user.password is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Password already set. Use change password instead.")
     pwd_hash=hash_pwd(data.password)
