@@ -17,16 +17,16 @@ limiter=Limiter(key_func=get_remote_address)
 
 @router.post("/api/workspace/create/",response_model=schemas.WorkspaceResponse,status_code=status.HTTP_201_CREATED)
 @limiter.limit("20/minute")
-def create_workspace(request: Request,data:schemas.WorkspaceCreate,db:Session=Depends(get_db),
-                     token:str=Depends(JWTUtil.oauth_schema),current_user:User=Depends(JWTUtil.get_user)):
+def create_workspace(request: Request,data:schemas.WorkspaceCreate,db:Session=Depends(get_db)
+                     ,current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.create_workspace(db,data,current_user.id)
     crud.add_member(db,workspace,current_user,role="admin")
     return workspace
 
 @router.get("/api/workspace/my/",response_model=List[schemas.WorkspaceResponse])
 @limiter.limit("50/minute")
-def get_my_workspaces(request: Request,db:Session=Depends(get_db),token:str=Depends(JWTUtil.oauth_schema),
-                      current_user:User=Depends(JWTUtil.get_user),search:Optional[str]=Query(None,description="Search by workspace name")):
+def get_my_workspaces(request: Request,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user),
+                      search:Optional[str]=Query(None,description="Search by workspace name")):
     workspaces=crud.get_user_workspace(db,current_user.id,search)
     for workspace in workspaces:
         workspace.member_count=len(workspace.workspace_member)
@@ -35,7 +35,7 @@ def get_my_workspaces(request: Request,db:Session=Depends(get_db),token:str=Depe
 @router.get("/api/workspace/search/", response_model=List[schemas.WorkspaceResponse])
 @limiter.limit("100/minute")
 def search_workspaces(request: Request,name:str=Query(None, description="workspace name"),db:Session=Depends(get_db),
-                      token:str=Depends(JWTUtil.oauth_schema),current_user:User=Depends(JWTUtil.get_user)):
+                      current_user:User=Depends(JWTUtil.get_user)):
     workspaces=crud.search_workspace(db,current_user.id,name)
     for workspace in workspaces:
         workspace.member_count=len(workspace.workspace_member)
@@ -43,8 +43,7 @@ def search_workspaces(request: Request,name:str=Query(None, description="workspa
 
 @router.get("/api/workspace/detail/{name}/", response_model=schemas.WorkspaceWithMembers)
 @limiter.limit("100/minute")
-def get_workspace(request:Request,name:str,db:Session=Depends(get_db),token:str=Depends(JWTUtil.oauth_schema),
-                  current_user:User=Depends(JWTUtil.get_user)):
+def get_workspace(request:Request,name:str,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace = db.query(Workspace).filter(Workspace.name == name).first()
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
@@ -54,8 +53,8 @@ def get_workspace(request:Request,name:str,db:Session=Depends(get_db),token:str=
 
 @router.put("/api/workspace/update/{id}/", response_model=schemas.WorkspaceResponse)
 @limiter.limit("10/minute")
-def update_workspace(request: Request,id: int,data:schemas.WorkspaceUpdate,db:Session=Depends(get_db),
-                     token:str=Depends(JWTUtil.oauth_schema),current_user:User=Depends(JWTUtil.get_user)):
+def update_workspace(request: Request,id: int,data:schemas.WorkspaceUpdate,db:Session=Depends(get_db)
+                     ,current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
@@ -66,8 +65,7 @@ def update_workspace(request: Request,id: int,data:schemas.WorkspaceUpdate,db:Se
 
 @router.post("/api/workspace/invite/{id}/", status_code=status.HTTP_200_OK)
 @limiter.limit("10/minute")
-def invite_users(request: Request,id:int,data:schemas.WorkspaceInvite,db:Session=Depends(get_db),
-                 token:str=Depends(JWTUtil.oauth_schema),current_user:User=Depends(JWTUtil.get_user)):
+def invite_users(request: Request,id:int,data:schemas.WorkspaceInvite,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
@@ -92,8 +90,7 @@ def invite_users(request: Request,id:int,data:schemas.WorkspaceInvite,db:Session
 
 @router.get("/api/workspace/members/{id}",response_model=List[schemas.MemberDetail])
 @limiter.limit("10/minute")
-def get_workspace_members(request: Request,id:int,db:Session=Depends(get_db),token:str=Depends(JWTUtil.oauth_schema),
-                          current_user:User=Depends(JWTUtil.get_user)):
+def get_workspace_members(request: Request,id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
@@ -104,8 +101,7 @@ def get_workspace_members(request: Request,id:int,db:Session=Depends(get_db),tok
 
 @router.delete("/api/workspace/{id}/member/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("50/minute")
-def remove_member(request: Request,id:int,user_id:int,db:Session=Depends(get_db),token:str=Depends(JWTUtil.oauth_schema),
-                          current_user:User=Depends(JWTUtil.get_user)):
+def remove_member(request: Request,id:int,user_id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
@@ -121,8 +117,7 @@ def remove_member(request: Request,id:int,user_id:int,db:Session=Depends(get_db)
 
 @router.post("/api/workspace/join/{id}",response_model=schemas.WorkspaceResponse)
 @limiter.limit("50/minute")
-def join_workspace(request: Request,id:int,code:str,db:Session=Depends(get_db),token:str=Depends(JWTUtil.oauth_schema),
-                   current_user:User=Depends(JWTUtil.get_user)):
+def join_workspace(request: Request,id:int,code:str,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
     if not workspace or workspace.code!=code:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found or invalid security code")
@@ -135,8 +130,7 @@ def join_workspace(request: Request,id:int,code:str,db:Session=Depends(get_db),t
 
 @router.delete("/api/workspace/delete/{id}/", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("50/minute")
-def delete_workspace(request: Request,id:int,db:Session=Depends(get_db),token:str=Depends(JWTUtil.oauth_schema),
-                     current_user:User=Depends(JWTUtil.get_user)):
+def delete_workspace(request: Request,id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")

@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     FRONTEND_MOBILE_SCHEME: str
     REDIS_HOST: str
     REDIS_PORT: int
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
+    AWS_REGION: str
+    S3_BUCKET_NAME: str
  
     class Config:
         env_file = "app/.env"

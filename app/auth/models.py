@@ -1,7 +1,7 @@
-from sqlalchemy import Column,Integer,String,DateTime,Boolean,ForeignKey,UniqueConstraint
+from sqlalchemy import Column,Integer,String,DateTime,Boolean,ForeignKey,UniqueConstraint,Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime,timezone,timedelta
+from datetime import datetime,timezone
 from app.utils.dbUtil import Base
 
 class User(Base):
@@ -17,6 +17,7 @@ class User(Base):
     oauth_accounts=relationship("OAuthAccount",back_populates="user",cascade="all, delete-orphan")
     owned_workspaces=relationship("Workspace",back_populates="admin",foreign_keys="[Workspace.admin_id]")
     workspace_members=relationship("WorkspaceMember",back_populates="user",cascade="all, delete-orphan")
+    profile=relationship("Profile",back_populates="user",uselist=False,cascade="all, delete-orphan")
 
     @property
     def workspaces(self):
@@ -52,3 +53,17 @@ class OTP(Base):
     failed_attempt=Column(Integer,default=0)
     max_attempt=Column(Integer,default=5)
     locked_until=Column(DateTime(timezone=True),nullable=True)
+
+class Profile(Base):
+    __tablename__="profiles"
+    id=Column(Integer,primary_key=True)
+    user_id=Column(Integer,ForeignKey("users.id",ondelete="CASCADE"),unique=True,nullable=False,index=True)
+    fname=Column(String(100),nullable=False)
+    lname=Column(String(100),nullable=True)
+    post=Column(String(100),nullable=False)
+    reason=Column(Text,nullable=True)
+    image_url=Column(String(500),nullable=True)
+    created_at=Column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
+    updated_at=Column(DateTime(timezone=True),default=lambda: datetime.now(timezone.utc), 
+                       onupdate=lambda:datetime.now(timezone.utc))
+    user = relationship("User", back_populates="profile")
