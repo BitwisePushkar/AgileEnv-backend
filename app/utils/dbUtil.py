@@ -2,7 +2,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from functools import lru_cache
 from app import config
-from app.auth.models import Base
+from sqlalchemy.ext.declarative import declarative_base
+
+Base=declarative_base()
 
 @lru_cache()
 def get_settings():

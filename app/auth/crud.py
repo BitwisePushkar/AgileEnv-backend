@@ -1,11 +1,13 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from app.auth.models import User,TokenBlackList,OTP,OAuthAccount,OAuthState
+from app.auth.models import User,TokenBlackList,OTP,OAuthAccount,Profile
 from app.auth.schemas import UserCreate
 from datetime import datetime, timezone, timedelta
 from random import randint
+from typing import Optional
 from fastapi import HTTPException,status
 import logging
+
 logger=logging.getLogger(__name__)
 
 def user_exist(db: Session, email: str):
@@ -230,3 +232,46 @@ def verify_and_delete_otp(db:Session,email:str,otp:str,purpose:str ):
     db.refresh(db_otp)
     remaining = db_otp.max_attempt-db_otp.failed_attempt
     return (False,remaining,f"Invalid OTP.")
+
+def get_profile_id(db:Session,id:int):
+    return db.query(Profile).filter(Profile.user_id==id).first()
+
+def create_profile(db:Session,id:int,data:dict):
+    profile = Profile(user_id=id,fname=data.get('fname'),lname=data.get('lname'),post=data.get('post'),
+                         reason=data.get('reason'),image_url=data.get('image_url'),created_at=datetime.now(timezone.utc))
+    db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    logger.info(f"Profile created for user_id: {id}")
+    return profile
+
+def update_profile(db:Session,id:int,data:dict)->Optional[Profile]:
+    profile=get_profile_id(db,id)
+    if not profile:
+        return None
+    if 'fname' in data:
+        profile.fname=data['fname']
+    if 'lname' in data:
+        profile.lname=data['lname']
+    if 'post' in data:
+        profile.post=data['post']
+    if 'reason' in data:
+        profile.reason=data['reason']
+    if 'image_url' in data:
+        profile.image_url=data['image_url']
+    profile.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(profile)
+    logger.info(f"Profile updated for user_id: {id}")
+    return profile
+
+def get_profile(db:Session,id:int):
+    profile=get_profile_id(db,id)
+    user=db.query(User).filter(User.id == id).first()
+    if not user:
+        return None
+    if not profile:
+        return {"user_id": user.id,"fname": None,"lname": None,"email": user.email,"username": user.username,"post": None,
+                "reason": None,"image_url": None}
+    return {"user_id": profile.user_id,"fname": profile.fname,"lname": profile.lname,"email": user.email,"username": user.username,
+            "post": profile.post,"reason": profile.reason,"image_url": profile.image_url}

@@ -1,21 +1,24 @@
-from fastapi import APIRouter, HTTPException, status, Depends,Request
+from fastapi import APIRouter, HTTPException, status, Depends,Request,UploadFile,File,Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.auth import schemas 
 from app.auth import crud
+from app.auth.models import User
 from app.utils.dbUtil import get_db
 from app.utils.passUtil import hash_pwd,verify_pass
 from app.utils import JWTUtil
 from app.utils.emailUtil import send_otp_email
+from app.utils.S3Util import s3_upload,s3_delete,validate_image
+from typing import Optional
 import logging 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import timedelta
-
-limiter=Limiter(key_func=get_remote_address)
+from app.auth.models import User
 
 router = APIRouter()
 logger=logging.getLogger(__name__)
+limiter=Limiter(key_func=get_remote_address)
 
 @router.post("/api/register/", status_code=status.HTTP_201_CREATED,response_model=schemas.OTPResponse)
 @limiter.limit("5/minute")
@@ -76,7 +79,7 @@ def register(request:Request,user:schemas.UserCreate,db:Session=Depends(get_db))
     return {"message": "Verification email sent successfully.","email": user.email}
 
 @router.post("/api/verify-registration/",response_model=schemas.OTPResponse)
-@limiter.limit("10/minute")
+@limiter.limit("5/minute")
 def verify_registration(request:Request,otp:schemas.OTPVerify,db:Session=Depends(get_db)):
     is_valid,attempts_remaining,error_message=crud.verify_and_delete_otp(db,otp.email,otp.otp_code,otp.purpose)
     if not is_valid:
@@ -245,7 +248,7 @@ def check_email_exists(request:Request,req:schemas.EmailRequest,db:Session=Depen
     
 @router.post("/api/set-password/")
 @limiter.limit("5/minute")
-def set_password(request:Request,data:schemas.SetPassword,token:str=Depends(JWTUtil.oauth_schema),current_user=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+def set_password(request:Request,data:schemas.SetPassword,current_user:User=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     if current_user.password is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Password already set. Use change password instead.")
     pwd_hash=hash_pwd(data.password)
@@ -254,3 +257,135 @@ def set_password(request:Request,data:schemas.SetPassword,token:str=Depends(JWTU
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found")
     logger.info(f"Password set for OAuth user: {current_user.email}")
     return {"message": "Password set successfully.","email": current_user.email}
+
+@router.get("/api/profile/", response_model=schemas.ProfileResponse)
+@limiter.limit("30/minute")
+def get_profile(request:Request,current_user:User=Depends(JWTUtil.get_user),db: Session = Depends(get_db)):
+    profile=crud.get_profile(db,current_user.id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found")
+    logger.info(f"Profile fetched for user: {current_user.email}")
+    return profile
+
+@router.post("/api/profile/", response_model=schemas.ProfileResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
+def create_profile(request:Request,fname:str=Form(...),lname:Optional[str]=Form(None),post:str=Form(...),reason:Optional[str]=Form(None),
+                             image:Optional[UploadFile]=File(None),current_user:User=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+    exist = crud.get_profile_id(db, current_user.id)
+    if exist:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Profile already exists.")
+    profile_data = {}
+    if fname is not None:
+        fname=fname.strip()
+        if len(fname)<2 or len(fname)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="first name must be 2-100 characters")
+        profile_data['fname'] = fname
+
+    if lname is not None:
+        lname = lname.strip()
+        if len(lname)<2 or len(lname)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="last name must be 2-100 characters")
+        profile_data['lname'] = lname
+    
+    if post is not None:
+        post=post.strip()
+        if len(post)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="post must not exceed 100 characters")
+        profile_data['post']=post
+    
+    if reason is not None:
+        reason=reason.strip()
+        if len(reason)>1000:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Reason must not exceed 1000 characters")
+        profile_data['reason']=reason
+    
+    image_url = None
+    if image:
+        if not validate_image(image.filename, 0):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Invalid image file extension")
+        file_content=image.file.read()
+        file_size=len(file_content)
+        if not validate_image(image.filename, file_size):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Image file is too large")
+        image_url=s3_upload(file_content, image.filename, image.content_type)
+        if not image_url:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Failed to upload image")
+        profile_data['image_url']=image_url
+        logger.info(f"Profile image uploaded for user: {current_user.email}")
+    try:
+        updated_profile=crud.create_profile(db,current_user.id,profile_data)
+        logger.info(f"Profile created for user: {current_user.email}")
+        profile_response=crud.get_profile(db, current_user.id)
+        return profile_response
+    except Exception as e:
+        if image_url:
+            s3_delete(image_url)
+            logger.warning("delete image")
+        logger.error(f"Profile creation failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Failed to create profile")
+
+@router.put("/api/profile/", response_model=schemas.ProfileResponse)
+@limiter.limit("10/minute")
+def update_profile(request:Request,fname: Optional[str]=Form(None),lname:Optional[str]=Form(None),post:Optional[str]=Form(None),reason:Optional[str]=Form(None),
+                             image:Optional[UploadFile]=File(None),current_user:User=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
+    exist=crud.get_profile_id(db,current_user.id)
+    if not exist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Profile not found.")
+    profile_data = {}
+    
+    if fname is not None:
+        fname=fname.strip()
+        if len(fname)<2 or len(fname)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="first name must be 2-100 characters")
+        profile_data['fname'] = fname
+
+    if lname is not None:
+        lname = lname.strip()
+        if len(lname)<2 or len(lname)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="last name must be 2-100 characters")
+        profile_data['lname'] = lname
+    
+    if post is not None:
+        post=post.strip()
+        if len(post)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="post must not exceed 100 characters")
+        profile_data['post']=post
+    
+    if reason is not None:
+        reason=reason.strip()
+        if len(reason)>1000:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Reason must not exceed 1000 characters")
+        profile_data['reason']=reason
+
+    old_image_url = None
+    new_image_url = None
+    if image:
+        if not validate_image(image.filename,0):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Invalid image file extension")
+        file_content=image.file.read()
+        file_size=len(file_content)
+        if not validate_image(image.filename, file_size):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Image file is too large")
+        new_image_url = s3_upload(file_content,image.filename,image.content_type)
+        if not new_image_url:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Failed to upload image")
+        old_image_url = exist.image_url
+        profile_data['image_url'] = new_image_url
+        logger.info(f"New profile image uploaded for user: {current_user.email}")
+    try:
+        updated_profile=crud.update_profile(db,current_user.id,profile_data)
+        logger.info(f"Profile updated for user: {current_user.email}")
+        if old_image_url and new_image_url:
+            deleted = s3_delete(old_image_url)
+            if deleted:
+                logger.info("Old image deleted")
+            else:
+                logger.warning(f"fail to delete old image")
+        profile_response = crud.get_profile(db, current_user.id)
+        return profile_response
+    except Exception as e:
+        if new_image_url:
+            s3_delete(new_image_url)
+            logger.warning("couldnt upload image")
+        logger.error(f"Profile update failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Failed to update profile")
