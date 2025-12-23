@@ -14,10 +14,10 @@ settings = get_settings()
 class RedisClient:
     def __init__(self):
         try:
-            self.client = redis.Redis(host=settings.REDIS_HOST,port=settings.REDIS_PORT,db=0,
-                                      decode_responses=True,socket_connect_timeout=5,socket_timeout=5)
+            self.client = redis.Redis(host=settings.REDIS_HOST,port=settings.REDIS_PORT,db=0,decode_responses=True,
+                                      socket_connect_timeout=5,socket_timeout=5,max_connections=50,retry_on_timeout=True,)
             self.client.ping()
-            logger.info(f"Successfully connected to Redis at {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+            logger.info("Successfully connected to Redis")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {str(e)}")
             raise
@@ -26,6 +26,9 @@ class RedisClient:
         try:
             self.client.setex(key, expiry_seconds, value)
             return True
+        except redis.ConnectionError as e:
+            logger.error(f"Redis connection error on SET: {str(e)}")
+            return False
         except Exception as e:
             logger.error(f"Redis SET error: {str(e)}")
             return False

@@ -200,3 +200,54 @@ class SetPassword(BaseModel):
         if 'password' in info.data and v != info.data['password']:
             raise ValueError('Passwords do not match')
         return v
+    
+class Profile(BaseModel):
+    fname:str=Field(...,example="King",max_length=100)
+    lname:Optional[str]=Field(None,example="Singh",max_length=100)
+    post:str=Field(...,example="Software Engineer",max_length=100)
+    reason:Optional[str]=Field(None,example="to create new thing")
+    
+    @field_validator("fname","lname")
+    @classmethod
+    def names(cls,v:Optional[str]):
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v)<2:
+            raise ValueError("atleast 2 character")
+        if len(v)>100:
+            raise ValueError("atmost 100 character")
+        return v
+    
+    @field_validator('post')
+    @classmethod
+    def post(cls,v):
+        if v is None:
+            raise ValueError("post is required")
+        v=v.strip()
+        if not v:
+            raise ValueError("post not empty")
+        if len(v)>100:
+            raise ValueError("atmost 100 characters")
+    
+    @field_validator('reason')
+    @classmethod
+    def validate_reason(cls, v):
+        if v is not None:
+            v=v.strip()
+            if len(v)>1000:
+                raise ValueError("atmost 1000 characters")
+        return v
+
+class ProfileResponse(BaseModel):
+    user_id: int
+    fname:str
+    lname:Optional[str]
+    email:str
+    username:str
+    post:str
+    reason:Optional[str]
+    image_url:Optional[str]
+
+    class Config:
+        from_attributes = True
