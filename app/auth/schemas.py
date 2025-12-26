@@ -202,21 +202,19 @@ class SetPassword(BaseModel):
         return v
     
 class Profile(BaseModel):
-    fname:str=Field(...,example="King",max_length=100)
-    lname:Optional[str]=Field(None,example="Singh",max_length=100)
+    name:str=Field(...,example="King Singh",max_length=100)
     post:str=Field(...,example="Software Engineer",max_length=100)
     reason:Optional[str]=Field(None,example="to create new thing")
     
-    @field_validator("fname","lname")
+    @field_validator("name")
     @classmethod
-    def names(cls,v:Optional[str]):
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v)<2:
-            raise ValueError("atleast 2 character")
-        if len(v)>100:
-            raise ValueError("atmost 100 character")
+    def validate_full_name(cls, v):
+        if v is not None:
+            v=v.strip()
+            if len(v) < 2:
+                raise ValueError("Full name must be at least 2 characters")
+            if len(v) > 100:
+                raise ValueError("Full name must not exceed 100 characters")
         return v
     
     @field_validator('post')
@@ -241,8 +239,7 @@ class Profile(BaseModel):
 
 class ProfileResponse(BaseModel):
     user_id: int
-    fname:str
-    lname:Optional[str]
+    name:str
     email:str
     username:str
     post:str

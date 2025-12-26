@@ -269,23 +269,17 @@ def get_profile(request:Request,current_user:User=Depends(JWTUtil.get_user),db: 
 
 @router.post("/api/profile/", response_model=schemas.ProfileResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
-def create_profile(request:Request,fname:str=Form(...),lname:Optional[str]=Form(None),post:str=Form(...),reason:Optional[str]=Form(None),
+def create_profile(request:Request,name:str=Form(...),post:str=Form(...),reason:Optional[str]=Form(None),
                              image:Optional[UploadFile]=File(None),current_user:User=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     exist = crud.get_profile_id(db, current_user.id)
     if exist:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Profile already exists.")
     profile_data = {}
-    if fname is not None:
-        fname=fname.strip()
-        if len(fname)<2 or len(fname)>100:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="first name must be 2-100 characters")
-        profile_data['fname'] = fname
-
-    if lname is not None:
-        lname = lname.strip()
-        if len(lname)<2 or len(lname)>100:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="last name must be 2-100 characters")
-        profile_data['lname'] = lname
+    if name is not None:
+        name=name.strip()
+        if len(name)<2 or len(name)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="name must be 2-100 characters")
+        profile_data['name'] = name
     
     if post is not None:
         post=post.strip()
@@ -326,25 +320,19 @@ def create_profile(request:Request,fname:str=Form(...),lname:Optional[str]=Form(
 
 @router.put("/api/profile/", response_model=schemas.ProfileResponse)
 @limiter.limit("10/minute")
-def update_profile(request:Request,fname: Optional[str]=Form(None),lname:Optional[str]=Form(None),post:Optional[str]=Form(None),reason:Optional[str]=Form(None),
+def update_profile(request:Request,name: Optional[str]=Form(None),post:Optional[str]=Form(None),reason:Optional[str]=Form(None),
                              image:Optional[UploadFile]=File(None),current_user:User=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     exist=crud.get_profile_id(db,current_user.id)
     if not exist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Profile not found.")
     profile_data = {}
     
-    if fname is not None:
-        fname=fname.strip()
-        if len(fname)<2 or len(fname)>100:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="first name must be 2-100 characters")
-        profile_data['fname'] = fname
+    if name is not None:
+        name=name.strip()
+        if len(name)<2 or len(name)>100:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="name must be 2-100 characters")
+        profile_data['name'] = name
 
-    if lname is not None:
-        lname = lname.strip()
-        if len(lname)<2 or len(lname)>100:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="last name must be 2-100 characters")
-        profile_data['lname'] = lname
-    
     if post is not None:
         post=post.strip()
         if len(post)>100:

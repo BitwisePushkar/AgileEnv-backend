@@ -237,7 +237,7 @@ def get_profile_id(db:Session,id:int):
     return db.query(Profile).filter(Profile.user_id==id).first()
 
 def create_profile(db:Session,id:int,data:dict):
-    profile = Profile(user_id=id,fname=data.get('fname'),lname=data.get('lname'),post=data.get('post'),
+    profile = Profile(user_id=id,name=data.get('name'),post=data.get('post'),
                          reason=data.get('reason'),image_url=data.get('image_url'),created_at=datetime.now(timezone.utc))
     db.add(profile)
     db.commit()
@@ -249,10 +249,8 @@ def update_profile(db:Session,id:int,data:dict)->Optional[Profile]:
     profile=get_profile_id(db,id)
     if not profile:
         return None
-    if 'fname' in data:
-        profile.fname=data['fname']
-    if 'lname' in data:
-        profile.lname=data['lname']
+    if 'name' in data:
+        profile.name=data['name']
     if 'post' in data:
         profile.post=data['post']
     if 'reason' in data:
@@ -271,7 +269,7 @@ def get_profile(db:Session,id:int):
     if not user:
         return None
     if not profile:
-        return {"user_id": user.id,"fname": None,"lname": None,"email": user.email,"username": user.username,"post": None,
+        return {"user_id": user.id,"name": None,"email": user.email,"username": user.username,"post": None,
                 "reason": None,"image_url": None}
-    return {"user_id": profile.user_id,"fname": profile.fname,"lname": profile.lname,"email": user.email,"username": user.username,
+    return {"user_id": profile.user_id,"name": profile.name,"email": user.email,"username": user.username,
             "post": profile.post,"reason": profile.reason,"image_url": profile.image_url}
