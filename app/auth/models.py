@@ -58,8 +58,7 @@ class Profile(Base):
     __tablename__="profiles"
     id=Column(Integer,primary_key=True)
     user_id=Column(Integer,ForeignKey("users.id",ondelete="CASCADE"),unique=True,nullable=False,index=True)
-    fname=Column(String(100),nullable=False)
-    lname=Column(String(100),nullable=True)
+    name=Column(String(100),nullable=False)
     post=Column(String(100),nullable=False)
     reason=Column(Text,nullable=True)
     image_url=Column(String(500),nullable=True)
