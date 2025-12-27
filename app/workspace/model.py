@@ -31,7 +31,7 @@ class WorkspaceMember(Base):
     id=Column(Integer,primary_key=True,index=True)
     workspace_id=Column(Integer,ForeignKey('workspaces.id',ondelete='CASCADE'),nullable=False)
     user_id=Column(Integer,ForeignKey('users.id',ondelete='CASCADE'),nullable=False)
-    joined_at=Column(DateTime,default=datetime.now(timezone.utc),nullable=False)
+    joined_at=Column(DateTime,default=lambda:datetime.now(timezone.utc),nullable=False)
     role=Column(String(50),default="member")
     workspace=relationship("Workspace",back_populates="workspace_members")
     user=relationship("User",back_populates="workspace_members")
