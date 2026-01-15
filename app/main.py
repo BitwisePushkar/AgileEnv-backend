@@ -7,6 +7,7 @@ from app.auth.router import router as auth_router
 from app.auth.githubrouter import router as github_router
 from app.auth.googlerouter import router as google_router
 from app.workspace.routers import router as workspace_router
+from app.chat.routers import router as chat_router
 from app.utils.dbUtil import init_db
 
 limiter = Limiter(key_func=get_remote_address)
@@ -49,3 +50,4 @@ app.include_router(auth_router, tags=["Authentication"])
 app.include_router(github_router, tags=["Github OAuth"])
 app.include_router(google_router, tags=["Google OAuth"])
 app.include_router(workspace_router, tags=["Workspace"])
+app.include_router(chat_router, tags=["Chat"])

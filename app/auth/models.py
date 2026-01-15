@@ -1,5 +1,4 @@
 from sqlalchemy import Column,Integer,String,DateTime,Boolean,ForeignKey,UniqueConstraint,Text
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime,timezone
 from app.utils.dbUtil import Base
@@ -13,11 +12,15 @@ class User(Base):
     created_at=Column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
     is_active=Column(Boolean,default=True)
     is_verified=Column(Boolean,default=False) 
+    
     otps=relationship("OTP",backref="user",cascade="all, delete-orphan")
     oauth_accounts=relationship("OAuthAccount",back_populates="user",cascade="all, delete-orphan")
     owned_workspaces=relationship("Workspace",back_populates="admin",foreign_keys="[Workspace.admin_id]")
     workspace_members=relationship("WorkspaceMember",back_populates="user",cascade="all, delete-orphan")
     profile=relationship("Profile",back_populates="user",uselist=False,cascade="all, delete-orphan")
+    chatrooms=relationship('Chatroom',secondary='chatroom_members',back_populates='members')
+    created_chatrooms=relationship('Chatroom',foreign_keys='Chatroom.created_by',back_populates='creator')
+    sent_messages=relationship('Message',foreign_keys='Message.sender_id',back_populates='sender')
 
     @property
     def workspaces(self):
