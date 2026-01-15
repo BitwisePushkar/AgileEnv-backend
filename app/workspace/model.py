@@ -1,6 +1,5 @@
 from sqlalchemy import Column,Integer,Text,String,DateTime,ForeignKey,Boolean
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
 from app.utils.dbUtil import Base
 from datetime import datetime,timezone
 
@@ -17,7 +16,8 @@ class Workspace(Base):
     is_active=Column(Boolean,default=True)
     admin=relationship("User",foreign_keys=[admin_id],back_populates="owned_workspaces")
     workspace_members=relationship("WorkspaceMember",back_populates="workspace",cascade="all, delete-orphan")
-    
+    chatrooms=relationship('Chatroom',back_populates='workspace',cascade='all, delete-orphan')
+
     @property
     def members(self):
         return [member.user for member in self.workspace_members]
@@ -31,7 +31,7 @@ class WorkspaceMember(Base):
     id=Column(Integer,primary_key=True,index=True)
     workspace_id=Column(Integer,ForeignKey('workspaces.id',ondelete='CASCADE'),nullable=False)
     user_id=Column(Integer,ForeignKey('users.id',ondelete='CASCADE'),nullable=False)
-    joined_at=Column(DateTime,default=datetime.now(timezone.utc),nullable=False)
+    joined_at=Column(DateTime,default=lambda:datetime.now(timezone.utc),nullable=False)
     role=Column(String(50),default="member")
     workspace=relationship("Workspace",back_populates="workspace_members")
     user=relationship("User",back_populates="workspace_members")

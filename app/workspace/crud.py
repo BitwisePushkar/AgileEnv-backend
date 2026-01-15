@@ -6,7 +6,7 @@ from fastapi import HTTPException,status
 from sqlalchemy import func
 from app.workspace import schemas
 
-def get_workspace_id(db:Session,id:str):
+def get_workspace_id(db:Session,id:int):
     return db.query(Workspace).filter(Workspace.id==id).first()
 
 def get_workspace_code(db:Session,code:str):
@@ -33,7 +33,7 @@ def get_user_workspace(db:Session,id:int,search:Optional[str]=None):
     return query.all()
 
 def search_workspace(db:Session,id:int,name:Optional[str]=None):
-    query=db.query(Workspace).join(WorkspaceMember).filter(WorkspaceMember.user_id==id)
+    query=db.query(Workspace)
     if name:
         query=query.filter(func.lower(Workspace.name) == func.lower(name))
     return query.all()
@@ -41,7 +41,7 @@ def search_workspace(db:Session,id:int,name:Optional[str]=None):
 def update_workspace(db:Session,id:int,data:schemas.WorkspaceUpdate):
     workspace=get_workspace_id(db,id)
     if not workspace:
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="workspace not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="workspace not found")
     update=data.model_dump(exclude_unset=True)
     for field ,value in update.items():
         setattr(workspace,field,value)

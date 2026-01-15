@@ -17,34 +17,25 @@ limiter=Limiter(key_func=get_remote_address)
 
 @router.post("/api/workspace/create/",response_model=schemas.WorkspaceResponse,status_code=status.HTTP_201_CREATED)
 @limiter.limit("20/minute")
-def create_workspace(request: Request,data:schemas.WorkspaceCreate,db:Session=Depends(get_db)
-                     ,current_user:User=Depends(JWTUtil.get_user)):
+def create_workspace(request: Request,data:schemas.WorkspaceCreate,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.create_workspace(db,data,current_user.id)
     crud.add_member(db,workspace,current_user,role="admin")
     return workspace
 
-@router.get("/api/workspace/my/",response_model=List[schemas.WorkspaceResponse])
-@limiter.limit("50/minute")
-def get_my_workspaces(request: Request,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user),
-                      search:Optional[str]=Query(None,description="Search by workspace name")):
-    workspaces=crud.get_user_workspace(db,current_user.id,search)
-    for workspace in workspaces:
-        workspace.member_count=len(workspace.workspace_member)
-    return workspaces
-
 @router.get("/api/workspace/search/", response_model=List[schemas.WorkspaceResponse])
 @limiter.limit("100/minute")
-def search_workspaces(request: Request,name:str=Query(None, description="workspace name"),db:Session=Depends(get_db),
-                      current_user:User=Depends(JWTUtil.get_user)):
-    workspaces=crud.search_workspace(db,current_user.id,name)
-    for workspace in workspaces:
-        workspace.member_count=len(workspace.workspace_member)
+def search_workspaces(request: Request,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user),
+                   search: Optional[str] = Query(None, description="Search by workspace name"),all: bool = Query(False, description="Include all workspaces")):
+    if all:
+        workspaces=crud.search_workspace(db,current_user.id,search)
+    else:
+        workspaces=crud.get_user_workspace(db,current_user.id,search)
     return workspaces
 
-@router.get("/api/workspace/detail/{name}/", response_model=schemas.WorkspaceWithMembers)
+@router.get("/api/workspace/detail/{id}/", response_model=schemas.WorkspaceWithMembers)
 @limiter.limit("100/minute")
-def get_workspace(request:Request,name:str,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
-    workspace = db.query(Workspace).filter(Workspace.name == name).first()
+def get_workspace(request:Request,id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
+    workspace=crud.get_workspace_id(db,id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
     if not crud.is_member(db,workspace,current_user):
@@ -88,7 +79,7 @@ def invite_users(request: Request,id:int,data:schemas.WorkspaceInvite,db:Session
     return {"message": "Invitation process completed","invited": invited,"already_members": already_members,
             "not_found": not_found}
 
-@router.get("/api/workspace/members/{id}",response_model=List[schemas.MemberDetail])
+@router.get("/api/workspace/members/{id}/",response_model=List[schemas.MemberDetail])
 @limiter.limit("10/minute")
 def get_workspace_members(request: Request,id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
@@ -99,7 +90,7 @@ def get_workspace_members(request: Request,id:int,db:Session=Depends(get_db),cur
     members=crud.get_member_details(db,id)
     return members
 
-@router.delete("/api/workspace/{id}/member/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/api/workspace/{id}/member/{user_id}/", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("50/minute")
 def remove_member(request: Request,id:int,user_id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)
@@ -115,7 +106,7 @@ def remove_member(request: Request,id:int,user_id:int,db:Session=Depends(get_db)
     crud.remove_member(db,workspace,user)
     return None
 
-@router.post("/api/workspace/join/{id}",response_model=schemas.WorkspaceResponse)
+@router.post("/api/workspace/join/{id}/",response_model=schemas.WorkspaceResponse)
 @limiter.limit("50/minute")
 def join_workspace(request: Request,id:int,code:str,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
     workspace=crud.get_workspace_id(db,id)

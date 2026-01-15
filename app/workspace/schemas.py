@@ -10,21 +10,23 @@ class WorkspaceCreate(BaseModel):
 
     @field_validator('code')
     @classmethod
-    def validate(cls,v):
-        if not re.fullmatch(r'[A-Za-z0-9]{8}',v):
-            raise ValueError("should contain alphabets and number only")
-        alpha=sum(c.isalpha() for c in v)
+    def validate_code(cls, v):
+        if not re.fullmatch(r'[A-Za-z0-9]{8}', v):
+            raise ValueError("should contain alphabets and numbers only")
+        uc=sum(c.isupper() for c in v)
+        lc=sum(c.islower() for c in v)
         num=sum(c.isdigit() for c in v)
-        if alpha!=4 or num!=4:
-            raise ValueError("must contain exactly 4 alphabets and 4 numbers")
-        
+        if (uc+lc != 4 or num != 4 or uc==0 or lc== 0 or len(set(v)) < 6):
+            raise ValueError("must contain exactly 4 letters (mixed case) and 4 digits with at least 6 unique characters")
+        return v
+
 class WorkspaceUpdate(BaseModel):
     name:Optional[str]=Field(None,min_length=3,max_length=100)
     description:Optional[str]=None
     is_active:Optional[bool]=None
 
 class WorkspaceInvite(BaseModel):
-    email:List[EmailStr]=Field(...,min_items=1)
+    emails:List[EmailStr]=Field(...,min_items=1)
 
 class UserBasic(BaseModel):
     id:int
@@ -48,7 +50,6 @@ class WorkspaceResponse(BaseModel):
     id:int
     name:str
     description:Optional[str]
-    code:str
     admin_id:int
     created_at:datetime
     updated_at:datetime

@@ -239,10 +239,10 @@ class Profile(BaseModel):
 
 class ProfileResponse(BaseModel):
     user_id: int
-    name:str
+    name: Optional[str] = None
     email:str
     username:str
-    post:str
+    post: Optional[str] = None
     reason:Optional[str]
     image_url:Optional[str]
 
