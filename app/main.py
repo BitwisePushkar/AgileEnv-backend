@@ -43,7 +43,7 @@ def root(request: Request):
 
 @app.api_route("/health", methods=["GET", "HEAD"])
 @limiter.limit("200/minute")
-def health_check(request: Request):
+def app_health_check(request: Request):
     return {"status": "OK", "service": "Alige Backend", "version": "1.0"}
 
 app.include_router(auth_router, tags=["Authentication"])

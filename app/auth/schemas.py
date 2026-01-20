@@ -202,8 +202,8 @@ class SetPassword(BaseModel):
         return v
     
 class Profile(BaseModel):
-    name:str=Field(...,example="King Singh",max_length=100)
-    post:str=Field(...,example="Software Engineer",max_length=100)
+    name:Optional[str]=Field(...,example="King Singh",max_length=100)
+    post:Optional[str]=Field(...,example="Software Engineer",max_length=100)
     reason:Optional[str]=Field(None,example="to create new thing")
     
     @field_validator("name")
@@ -219,7 +219,7 @@ class Profile(BaseModel):
     
     @field_validator('post')
     @classmethod
-    def post(cls,v):
+    def validate_post(cls,v):
         if v is None:
             raise ValueError("post is required")
         v=v.strip()
@@ -243,8 +243,8 @@ class ProfileResponse(BaseModel):
     email:str
     username:str
     post: Optional[str] = None
-    reason:Optional[str]
-    image_url:Optional[str]
+    reason:Optional[str] = None
+    image_url:Optional[str] = None
 
     class Config:
         from_attributes = True

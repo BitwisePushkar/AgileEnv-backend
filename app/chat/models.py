@@ -18,7 +18,8 @@ class Chatroom(Base):
     created_at=Column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
     updated_at=Column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc),
                       onupdate=lambda:datetime.now(timezone.utc))
-    members=relationship('User',secondary='chatroom_members',back_populates='chatrooms')
+    member_associated=relationship('ChatroomMember',back_populates='chatroom',cascade='all, delete-orphan')
+    members=relationship('User',secondary='chatroom_members',viewonly=True)
     messages=relationship('Message',back_populates='chatroom',cascade='all, delete-orphan')
     creator=relationship('User',foreign_keys=[created_by])
     workspace = relationship('Workspace', back_populates='chatrooms')
@@ -29,8 +30,8 @@ class ChatroomMember(Base):
     chat_id=Column(Integer,ForeignKey('chatrooms.id',ondelete='CASCADE'),nullable=False)
     user_id=Column(Integer,ForeignKey('users.id',ondelete='CASCADE'),nullable=False)
     joined_at=Column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))
-    chatroom=relationship('Chatroom',backref='member_list')
-    user=relationship('User',backref='chatroom_list')
+    chatroom=relationship('Chatroom',back_populates='member_associated')
+    user=relationship('User',back_populates='chatroom_memberships')
 
 class Message(Base):
     __tablename__ = 'messages'
