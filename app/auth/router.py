@@ -269,7 +269,7 @@ def get_profile(request:Request,current_user:User=Depends(JWTUtil.get_user),db: 
 
 @router.post("/api/profile/", response_model=schemas.ProfileResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("10/minute")
-def create_profile(request:Request,name:str=Form(...),post:str=Form(...),reason:Optional[str]=Form(None),
+def create_profile(request:Request,name:Optional[str]=Form(None),post:Optional[str]=Form(None),reason:Optional[str]=Form(None),
                              image:Optional[UploadFile]=File(None),current_user:User=Depends(JWTUtil.get_user),db:Session=Depends(get_db)):
     exist = crud.get_profile_id(db, current_user.id)
     if exist:
