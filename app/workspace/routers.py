@@ -17,7 +17,11 @@ limiter=Limiter(key_func=get_remote_address)
 
 @router.post("/api/workspace/create/",response_model=schemas.WorkspaceResponse,status_code=status.HTTP_201_CREATED)
 @limiter.limit("20/minute")
-def create_workspace(request: Request,data:schemas.WorkspaceCreate,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
+def create_workspace(request: Request,data:schemas.WorkspaceCreate,db:Session=Depends(get_db),
+                     current_user:User=Depends(JWTUtil.get_user)):
+    count=crud.count_workspaces(db,current_user.id)
+    if count >= 2:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Please upgrade to premium version to create more workspaces.")
     workspace=crud.create_workspace(db,data,current_user.id)
     crud.add_member(db,workspace,current_user,role="admin")
     return workspace
@@ -73,7 +77,6 @@ def invite_users(request: Request,id:int,data:schemas.WorkspaceInvite,db:Session
         if crud.is_member(db,workspace,user):
             already_members.append(email)
             continue
-        crud.add_member(db,workspace,user)
         workspace_invitation(email=email,name=workspace.name,code=workspace.code,admin=getattr(current_user,"username",current_user.email))
         invited.append(email)
     return {"message": "Invitation process completed","invited": invited,"already_members": already_members,
@@ -129,3 +132,12 @@ def delete_workspace(request: Request,id:int,db:Session=Depends(get_db),current_
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only admin can delete workspace")
     crud.delete_workspace(db,id)
     return None
+
+@router.get("/api/users/search/", response_model=List[schemas.UserSearchResponse])
+@limiter.limit("100/minute")
+def search_users(request: Request,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),query:Optional[str]=Query(None, description="Search by name"),
+                 limit:int=Query(20,ge=1,le=100, description="Max results to return")):
+    if not query or query.strip() == "":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Search query is required")
+    users = crud.search_users(db,query.strip(),limit)
+    return users

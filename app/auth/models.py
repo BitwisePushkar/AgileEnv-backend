@@ -18,9 +18,10 @@ class User(Base):
     owned_workspaces=relationship("Workspace",back_populates="admin",foreign_keys="[Workspace.admin_id]")
     workspace_members=relationship("WorkspaceMember",back_populates="user",cascade="all, delete-orphan")
     profile=relationship("Profile",back_populates="user",uselist=False,cascade="all, delete-orphan")
-    chatrooms=relationship('Chatroom',secondary='chatroom_members',back_populates='members')
     created_chatrooms=relationship('Chatroom',foreign_keys='Chatroom.created_by',back_populates='creator')
     sent_messages=relationship('Message',foreign_keys='Message.sender_id',back_populates='sender')
+    chatroom_memberships = relationship('ChatroomMember', back_populates='user')
+    chatrooms = relationship('Chatroom',secondary='chatroom_members',viewonly=True)
 
     @property
     def workspaces(self):
@@ -61,8 +62,8 @@ class Profile(Base):
     __tablename__="profiles"
     id=Column(Integer,primary_key=True)
     user_id=Column(Integer,ForeignKey("users.id",ondelete="CASCADE"),unique=True,nullable=False,index=True)
-    name=Column(String(100),nullable=False)
-    post=Column(String(100),nullable=False)
+    name=Column(String(100),nullable=True)
+    post=Column(String(100),nullable=True)
     reason=Column(Text,nullable=True)
     image_url=Column(String(500),nullable=True)
     created_at=Column(DateTime(timezone=True),default=lambda:datetime.now(timezone.utc))

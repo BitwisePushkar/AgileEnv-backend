@@ -62,3 +62,14 @@ class WorkspaceResponse(BaseModel):
 class WorkspaceWithMembers(WorkspaceResponse):
     admin: UserBasic
     members: List[UserBasic]
+
+class UserSearchResponse(BaseModel):
+    id:int
+    username:str
+    email:Optional[str] = None
+    name:Optional[str] = None
+    post:Optional[str] = None  
+    image_url: Optional[str] = None 
+    
+    class Config:
+        from_attributes = True

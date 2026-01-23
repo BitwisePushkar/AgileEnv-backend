@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from app.workspace.model import Workspace,WorkspaceMember
-from app.auth.models import User
+from app.auth.models import User,Profile
 from typing import Optional,List
 from fastapi import HTTPException,status
 from sqlalchemy import func
@@ -91,3 +91,14 @@ def delete_workspace(db:Session,id:int):
         db.commit()
         return True
     return False
+
+def count_workspaces(db:Session,id:int)->int:
+    count=db.query(Workspace).filter(Workspace.admin_id==id).count()
+    return count
+
+def search_users(db:Session,query:str,limit:int=20)->List[dict]:
+    search_term = f"%{query.lower()}%"
+    results = db.query(User,Profile).outerjoin(Profile,User.id == Profile.user_id).filter(
+        (func.lower(User.username).like(search_term)) | (func.lower(Profile.name).like(search_term))).limit(limit).all()
+    return [{"id": user.id,"username": user.username,"email": user.email,"name": profile.name if profile else None,"post": profile.post if profile else None,
+             "image_url": profile.image_url if profile else None}for user, profile in results]
