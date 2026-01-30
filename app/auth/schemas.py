@@ -227,6 +227,7 @@ class Profile(BaseModel):
             raise ValueError("post not empty")
         if len(v)>100:
             raise ValueError("atmost 100 characters")
+        return v
     
     @field_validator('reason')
     @classmethod
