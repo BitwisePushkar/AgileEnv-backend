@@ -13,8 +13,8 @@ from app.utils.dbUtil import init_db
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
-    docs_url="/docs",
-    redoc_url="/redocs",
+    docs_url="/api/docs",
+    redoc_url="/api/redocs",
     title="API documentation for Alige Backend",
     description="All APIs made for the Alige webapp- a modern and interactive Jira based webapp with multiple functionalities",
     version="1.0",
@@ -26,7 +26,11 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://alige-env-frontend-zs21.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
