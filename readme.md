@@ -1,140 +1,113 @@
-# 🚀 Jira-Inspired Project Management Backend (FastAPI)
+# Agile Backend
 
-A backend service inspired by **Jira**, built with **FastAPI**, supporting **JWT authentication**, **Google & GitHub OAuth**, and **AWS S3 profile storage**.
-The project is designed to be modular and scalable, with more features planned.
-
----
-
-## ✨ Features (Current)
-
-* 🔐 Authentication
-
-  * JWT-based authentication
-  * Google OAuth
-  * GitHub OAuth
-* 👤 User Profile
-
-  * Profile management
-  * Profile image upload using AWS S3
----
-
-## 🏗️ Tech Stack
-
-* **FastAPI**
-* **Python**
-* **JWT**
-* **OAuth 2.0 (Google, GitHub)**
-* **AWS S3**
-* **Docker / Docker Compose**
-* **Redis** 
-* **PostgreSQL / SQLAlchemy** 
+A minimalist, Jira-inspired project management backend powered by **FastAPI**.
+Designed around scalable Agile workflows — workspaces → projects → boards → issues → sprints.
 
 ---
 
-## 📂 Project Structure
+## Tech Stack
+
+`FastAPI : Python : PostgreSQL : SQLAlchemy : Redis : JWT : OAuth2 : AWS S3 : Docker`
+
+---
+
+## Core Functionality
+
+### Auth
+
+Register · Login · Logout · Refresh Token · Password Reset · Email Verification
+
+### Users
+
+Profile Management · Avatar Upload · Public Profiles · Account Control
+
+### Workspace
+
+Create · Manage · Invite · Roles · Member Control · Ownership Transfer
+
+### Projects
+
+Workspace Projects · Members & Roles · Archive Control
+
+### Boards
+
+Kanban / Scrum Boards · Columns · Reordering
+
+### Issues
+
+Create · Assign · Prioritize · Filter · Move Across Columns
+Subtasks · Epics · Status Flow · Archive
+
+### Labels
+
+Tagging System · Color-coded Labels
+
+### Comments
+
+Threaded Discussions on Issues
+
+### Attachments
+
+File Uploads via S3
+
+### Notifications
+
+Real-time Alerts · Preferences · Unread Counts
+
+### Activity Logs
+
+Issue History · Project Feed · Workspace Audit
+
+### Sprints
+
+Sprint Lifecycle · Issue Movement
+
+### Chat
+
+Workspace Chatrooms · Messaging · Member Control
+
+### Dashboard
+
+Workspace & Project Stats · Personal Work Summary
+
+---
+
+## Structure
 
 ```
-.
-│── .env
-│── .env.example
-│── config.py
-│── main.py
-│
-├── auth
-│   ├── crud.py
-│   ├── router.py
-│   ├── githubrouter.py
-│   ├── googlerouter.py
-│   ├── models.py
-│   └── schemas.py
-│
-├── workspace
-│   ├── crud.py
-│   ├── model.py
-│   ├── routers.py
-│   └── schemas.py
-│
-├── utils
-│   ├── dbUtil.py
-│   ├── emailUtil.py
-│   ├── githubUtil.py
-│   ├── googleUtil.py
-│   ├── JWTUtil.py
-│   ├── passUtil.py
-│   ├── redisUtils.py
-│   └── S3Util.py
-│
-└── __pycache__
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── readme.md
+└── app/
+    ├── main.py
+    ├── config.py
+    ├── auth/
+    ├── chat/
+    ├── workspace/
+    └── utils/
 ```
 
 ---
 
-## ⚙️ Environment Variables
+## ▶ Setup (Local)
 
-Create a `.env` file using `.env.example` as reference.
-
-Example:
-
-```
-DATABASE_URL=
-JWT_SECRET=
-JWT_ALGORITHM=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_BUCKET_NAME=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-```
-
----
-
-## ▶️ Running the Project (Local)
-
-### 1️⃣ Install dependencies
-
-```
-pip install -r app/requirements.txt
-```
-
-### 2️⃣ Run the server
-
-```
+```bash
+git clone <repo>
+cd agile-backend
+python -m venv venv
+source venv/bin/activate   # windows: venv\Scripts\activate
+pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-API will be available at:
-
-```
-http://127.0.0.1:8000
-```
-
-Swagger Docs:
-
-```
-http://127.0.0.1:8000/docs
-```
+Docs → `http://127.0.0.1:8000/api/docs`
 
 ---
 
-## 🐳 Running with Docker
+## 🐳 Setup (Docker)
 
-### Build & start containers
-
-```
+```bash
 docker-compose up --build
 ```
-
----
-
-## 🧠 Planned Features
-
-* Boards, issues, and task management
-* Role-based access control
-* Activity logs
-* Notifications
-* Team collaboration
-* WebSocket updates
-
 ---
