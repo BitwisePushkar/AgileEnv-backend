@@ -73,3 +73,23 @@ class UserSearchResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class PaginatedWorkspaceResponse(BaseModel):
+    total: int          
+    page: int         
+    page_size: int   
+    results: List[WorkspaceResponse]
+
+class TransferOwnership(BaseModel):
+    new_admin_id: int = Field(..., description="User ID of the member to promote as new admin")
+
+class UpdateMemberRole(BaseModel):
+    role: str = Field(..., description="New role for the member.Only 'member' and 'admin'")
+
+    @field_validator('role')
+    @classmethod
+    def validate_role(cls, v):
+        allowed = {"member", "admin"}
+        if v not in allowed:
+            raise ValueError(f"Role must be one of: {', '.join(allowed)}")
+        return v

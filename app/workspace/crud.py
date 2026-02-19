@@ -102,3 +102,66 @@ def search_users(db:Session,query:str,limit:int=20)->List[dict]:
         (func.lower(User.username).like(search_term)) | (func.lower(Profile.name).like(search_term))).limit(limit).all()
     return [{"id": user.id,"username": user.username,"email": user.email,"name": profile.name if profile else None,"post": profile.post if profile else None,
              "image_url": profile.image_url if profile else None}for user, profile in results]
+
+def get_all_workspaces(db: Session,skip: int = 0,limit: int = 20,active_only: bool = True) -> List[Workspace]:
+    query = db.query(Workspace)
+    if active_only:
+        query = query.filter(Workspace.is_active == True)
+    return query.order_by(Workspace.created_at.desc()).offset(skip).limit(limit).all()
+
+def count_all_workspaces(db: Session,active_only: bool = True) -> int:
+    query = db.query(func.count(Workspace.id))
+    if active_only:
+        query = query.filter(Workspace.is_active == True)
+    return query.scalar()
+
+def leave_workspace(db: Session,workspace: Workspace,user: User):
+    if workspace.admin_id == user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Admin cannot leave the workspace. Transfer ownership to another member first.")
+
+    member = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id,WorkspaceMember.user_id == user.id).first()
+    if not member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="You are not a member of this workspace")
+
+    db.delete(member)
+    db.commit()
+
+def transfer_ownership(db: Session,workspace: Workspace,new_admin: User,current_admin: User):
+    new_admin_member = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id,WorkspaceMember.user_id == new_admin.id).first()
+
+    if not new_admin_member:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Target user is not a member of this workspace")
+
+    if new_admin.id == current_admin.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You are already the admin of this workspace")
+
+    workspace.admin_id = new_admin.id
+
+    old_admin_member = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id,WorkspaceMember.user_id == current_admin.id).first()
+    if old_admin_member:
+        old_admin_member.role = "member"
+    new_admin_member.role = "admin"
+    db.commit()
+    db.refresh(workspace)
+    return workspace
+
+def update_member_role(db: Session, workspace: Workspace, target_user: User, new_role: str) -> dict:
+    allowed_roles = {"member", "admin"}
+    if new_role not in allowed_roles:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Invalid role. Allowed roles: {', '.join(allowed_roles)}")
+
+    member = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id,WorkspaceMember.user_id == target_user.id).first()
+
+    if not member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User is not a member of this workspace")
+
+    if new_role == "admin":
+        workspace.admin_id = target_user.id
+        current_admin_member = db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id,WorkspaceMember.user_id == workspace.admin_id).first()
+        if current_admin_member:
+            current_admin_member.role = "member"
+    member.role = new_role
+    db.commit()
+    db.refresh(member)
+    return {"id": member.user.id,"email": member.user.email,"username": getattr(member.user, "username", None),
+            "joined_at": member.joined_at,"role": member.role,}
