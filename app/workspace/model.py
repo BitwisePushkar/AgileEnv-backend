@@ -17,6 +17,7 @@ class Workspace(Base):
     admin=relationship("User",foreign_keys=[admin_id],back_populates="owned_workspaces")
     workspace_members=relationship("WorkspaceMember",back_populates="workspace",cascade="all, delete-orphan")
     chatrooms=relationship('Chatroom',back_populates='workspace',cascade='all, delete-orphan')
+    projects = relationship("Project", back_populates="workspace", cascade="all, delete-orphan")
 
     @property
     def members(self):

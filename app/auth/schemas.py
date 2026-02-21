@@ -108,6 +108,8 @@ class Token(BaseModel):
     access_token:str
     refresh_token:str=None
     token_type:str="bearer"
+    username: str
+    email: str
 
 class RefreshToken(BaseModel):
     refresh_token:str
