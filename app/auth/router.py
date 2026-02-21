@@ -141,7 +141,8 @@ def login(request:Request,data:schemas.UserLogin,db:Session=Depends(get_db)):
     access_token=JWTUtil.create_token(data={"sub":db_user.email,"user_id":db_user.id})
     refresh_token=JWTUtil.refresh_token(data={"sub":db_user.email,"user_id":db_user.id})
     logger.info(f"User logged in successfully: {db_user.email}")
-    return {"access_token":access_token,"refresh_token": refresh_token,"token_type":"Bearer"}
+    return {"access_token":access_token,"refresh_token": refresh_token,"token_type":"Bearer",
+            "username": db_user.username,"email": db_user.email}
 
 @router.post("/api/refresh/",response_model=schemas.Token)
 @limiter.limit("20/minute")
