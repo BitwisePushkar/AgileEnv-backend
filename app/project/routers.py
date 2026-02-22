@@ -9,6 +9,7 @@ from app.project import crud, schemas
 from app.project.model import Project
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from app.kanban.crud import create_default_columns as create_kanban_defaults
 
 router  = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
@@ -33,6 +34,8 @@ def create_project(request: Request,workspace_id: int,data: schemas.ProjectCreat
     if not crud.is_workspace_member(db, workspace_id, current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="You must be a workspace member to create a project",)
     project = crud.create_project(db, workspace_id, data, current_user.id)
+    if data.board_type == "kanban":
+        create_kanban_defaults(db, project.id)
     return format_project_detail(project)
 
 @router.get("/api/workspace/{workspace_id}/projects/",response_model=List[schemas.ProjectResponse],)
