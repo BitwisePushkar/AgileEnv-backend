@@ -8,7 +8,8 @@ from app.auth.githubrouter import router as github_router
 from app.auth.googlerouter import router as google_router
 from app.workspace.routers import router as workspace_router
 from app.chat.routers import router as chat_router
-from app.project.routers import router as projet_router
+from app.project.routers import router as project_router
+from app.kanban.routers import router as kanban_router
 from app.utils.dbUtil import init_db
 
 limiter = Limiter(key_func=get_remote_address)
@@ -46,7 +47,7 @@ def on_startup():
 def root(request: Request):
     return {"message": "Welcome to Alige Backend"}
 
-@app.api_route("/health", methods=["GET", "HEAD"])
+@app.api_route("/health")
 @limiter.limit("200/minute")
 def app_health_check(request: Request):
     return {"status": "OK", "service": "Alige Backend", "version": "1.0"}
@@ -56,4 +57,5 @@ app.include_router(github_router, tags=["Github OAuth"])
 app.include_router(google_router, tags=["Google OAuth"])
 app.include_router(workspace_router, tags=["Workspace"])
 app.include_router(chat_router, tags=["Chat"])
-app.include_router(projet_router, tags=["Project"])
+app.include_router(project_router, tags=["Project"])
+app.include_router(kanban_router, tags=["Kanban"])

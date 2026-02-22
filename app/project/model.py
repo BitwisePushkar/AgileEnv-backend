@@ -24,8 +24,10 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                           onupdate=lambda: datetime.now(timezone.utc))
     workspace = relationship("Workspace", back_populates="projects")
-    creator   = relationship("User", foreign_keys=[created_by])
-    members   = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
+    creator = relationship("User", foreign_keys=[created_by])
+    members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
+    kanban_columns = relationship("KanbanColumn", back_populates="project", cascade="all, delete-orphan")
+    kanban_cards = relationship("KanbanCard", back_populates="project", cascade="all, delete-orphan")
 
 class ProjectMember(Base):
     __tablename__ = "project_members"

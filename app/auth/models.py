@@ -23,6 +23,8 @@ class User(Base):
     chatroom_memberships = relationship('ChatroomMember', back_populates='user')
     project_memberships = relationship("ProjectMember", back_populates="user", cascade="all, delete-orphan")
     chatrooms = relationship('Chatroom',secondary='chatroom_members',viewonly=True)
+    assigned_cards = relationship("KanbanCard", foreign_keys="KanbanCard.assignee_id", back_populates="assignee")
+    created_cards = relationship("KanbanCard", foreign_keys="KanbanCard.created_by",  back_populates="creator")
 
     @property
     def workspaces(self):
