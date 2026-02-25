@@ -1,17 +1,21 @@
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from functools import lru_cache
 from app import config
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 
 @lru_cache()
 def get_settings():
     return config.Settings()
 
 settings = get_settings()
-API_KEY = settings.API_KEY
 FROM_EMAIL = settings.FROM_EMAIL
+SMTP_HOST = settings.SMTP_HOST
+SMTP_PORT = settings.SMTP_PORT
+SMTP_USER = settings.SMTP_USER
+SMTP_PASSWORD = settings.SMTP_PASSWORD
 
-def get_registration_html(otp:str,username:str)->str:
+def get_registration_html(otp: str, username: str) -> str:
     return f"""
     <html>
     <body style="font-family: Arial; padding: 20px;">
@@ -47,28 +51,42 @@ def get_password_reset_html(otp: str) -> str:
     </html>
     """
 
-def send_otp_email(email: str, otp: str, purpose: str, username: str = "User"):
+def _send_email(to_email: str, subject: str, html: str) -> bool:
+    """Core helper that handles the SMTP connection and sending."""
     try:
-        if purpose == "registration":
-            subject = "Your Registration OTP"
-            html = get_registration_html(otp, username)
-        elif purpose == "password_reset":
-            subject = "Your Password Reset OTP"
-            html = get_password_reset_html(otp)
-        else:
-            return False
-        message = Mail(from_email=FROM_EMAIL,to_emails=email,subject=subject,html_content=html)
-        sg = SendGridAPIClient(API_KEY)
-        response = sg.send(message)
-        print(f"Email sent to {email} - Status: {response.status_code}")
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = FROM_EMAIL
+        msg["To"] = to_email
+        msg.attach(MIMEText(html, "html"))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
+
+        print(f"Email sent to {to_email}")
         return True
-        
+
     except Exception as e:
         print(f"Email error: {str(e)}")
         return False
-    
-def workspace_invitation(email:str,name:str,code:str,admin: str):
-    html=f"""
+
+def send_otp_email(email: str, otp: str, purpose: str, username: str = "User") -> bool:
+    if purpose == "registration":
+        subject = "Your Registration OTP"
+        html = get_registration_html(otp, username)
+    elif purpose == "password_reset":
+        subject = "Your Password Reset OTP"
+        html = get_password_reset_html(otp)
+    else:
+        return False
+
+    return _send_email(email, subject, html)
+
+def workspace_invitation(email: str, name: str, code: str, admin: str) -> bool:
+    html = f"""
     <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -77,7 +95,7 @@ def workspace_invitation(email:str,name:str,code:str,admin: str):
                 <p><strong>{admin}</strong> has invited you to join the workspace:</p>
                 <div style="background-color: #f7fafc; padding: 15px; border-radius: 5px; margin: 20px 0;">
                     <h3 style="margin: 0 0 10px 0; color: #2d3748;">{name}</h3>
-                    <p style="margin: 5px 0;"><strong>Security Code:</strong> 
+                    <p style="margin: 5px 0;"><strong>Security Code:</strong>
                         <code style="background-color: #edf2f7; padding: 5px 10px; border-radius: 3px; font-size: 16px;">
                             {code}
                         </code>
@@ -91,12 +109,4 @@ def workspace_invitation(email:str,name:str,code:str,admin: str):
         </body>
     </html>
     """
-    message = Mail(from_email=FROM_EMAIL,to_emails=email,subject=f"Invitation to join {name}",html_content=html)
-    try:
-        sg = SendGridAPIClient(API_KEY)
-        response = sg.send(message)
-        print(f"Email sent to {email} - Status: {response.status_code}")
-        return True
-    except Exception as e:
-        print(f"Error sending email: {str(e)}")
-        return False
+    return _send_email(email, f"Invitation to join {name}", html)

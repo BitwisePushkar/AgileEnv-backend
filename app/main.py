@@ -47,7 +47,7 @@ def on_startup():
 def root(request: Request):
     return {"message": "Welcome to Alige Backend"}
 
-@app.api_route("/health")
+@app.api_route("/health",methods=["GET", "HEAD"])
 @limiter.limit("200/minute")
 def app_health_check(request: Request):
     return {"status": "OK", "service": "Alige Backend", "version": "1.0"}
