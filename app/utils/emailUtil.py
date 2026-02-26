@@ -1,8 +1,11 @@
 import smtplib
+import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from functools import lru_cache
 from app import config
+
+logger = logging.getLogger(__name__)
 
 @lru_cache()
 def get_settings():
@@ -14,6 +17,31 @@ SMTP_HOST = settings.SMTP_HOST
 SMTP_PORT = settings.SMTP_PORT
 SMTP_USER = settings.SMTP_USER
 SMTP_PASSWORD = settings.SMTP_PASSWORD
+
+def _send_email(to_email: str, subject: str, html: str) -> bool:
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = FROM_EMAIL
+        msg["To"]      = to_email
+        msg.attach(MIMEText(html, "html"))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
+        logger.info(f"Email sent to {to_email} | Subject: {subject}")
+        return True
+
+    except smtplib.SMTPAuthenticationError:
+        logger.error(f"SMTP authentication failed for {to_email}")
+        return False
+    except smtplib.SMTPException as e:
+        logger.error(f"SMTP error sending to {to_email}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error sending email to {to_email}: {e}")
+        return False
 
 def get_registration_html(otp: str, username: str) -> str:
     return f"""
@@ -51,28 +79,6 @@ def get_password_reset_html(otp: str) -> str:
     </html>
     """
 
-def _send_email(to_email: str, subject: str, html: str) -> bool:
-    """Core helper that handles the SMTP connection and sending."""
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = FROM_EMAIL
-        msg["To"] = to_email
-        msg.attach(MIMEText(html, "html"))
-
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
-
-        print(f"Email sent to {to_email}")
-        return True
-
-    except Exception as e:
-        print(f"Email error: {str(e)}")
-        return False
-
 def send_otp_email(email: str, otp: str, purpose: str, username: str = "User") -> bool:
     if purpose == "registration":
         subject = "Your Registration OTP"
@@ -81,6 +87,7 @@ def send_otp_email(email: str, otp: str, purpose: str, username: str = "User") -
         subject = "Your Password Reset OTP"
         html = get_password_reset_html(otp)
     else:
+        logger.warning(f"Unknown email purpose '{purpose}' for {email}")
         return False
 
     return _send_email(email, subject, html)
