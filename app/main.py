@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -11,15 +12,49 @@ from app.chat.routers import router as chat_router
 from app.project.routers import router as project_router
 from app.kanban.routers import router as kanban_router
 from app.scrum.routers import router as scrum_router
-from app.utils.dbUtil import init_db
+from app.utils.dbUtil import init_db, get_db
+import asyncio
+import logging
 
+logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
+async def _blacklist_cleanup_task():
+    while True:
+        try:
+            await asyncio.sleep(86400)  
+            db_gen = get_db()
+            db = next(db_gen)
+            try:
+                from app.auth.crud import clear_blacklist
+                deleted = clear_blacklist(db)
+                logger.info(f"Blacklist cleanup: removed {deleted} expired entries")
+            finally:
+                db.close()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Blacklist cleanup task error: {e}")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    cleanup_task = asyncio.create_task(_blacklist_cleanup_task())
+    logger.info("Agile backend started")
+    yield
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Agile backend stopped")
+
 app = FastAPI(
+    lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redocs",
-    title="API documentation for Alige Backend",
-    description="All APIs made for the Alige webapp- a modern and interactive Jira based webapp with multiple functionalities",
+    title="Agile Backend API",
+    description="REST API for Agile — a modern Jira-inspired project management app.",
     version="1.0",
     openapi_url="/openapi.json",
 )
@@ -39,22 +74,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-def on_startup():
-   init_db()
-
 @app.get("/")
 @limiter.limit("100/minute")
 def root(request: Request):
-    return {"message": "Welcome to Alige Backend"}
+    return {"message": "Welcome to Agile Backend"}
 
-@app.api_route("/health",methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"], operation_id="health_check")
 @limiter.limit("200/minute")
 def app_health_check(request: Request):
-    return {"status": "OK", "service": "Alige Backend", "version": "1.0"}
+    return {"status": "OK", "service": "Agile Backend", "version": "1.0"}
 
 app.include_router(auth_router, tags=["Authentication"])
-app.include_router(github_router, tags=["Github OAuth"])
+app.include_router(github_router, tags=["GitHub OAuth"])
 app.include_router(google_router, tags=["Google OAuth"])
 app.include_router(workspace_router, tags=["Workspace"])
 app.include_router(chat_router, tags=["Chat"])
