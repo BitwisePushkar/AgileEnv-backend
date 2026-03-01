@@ -6,7 +6,7 @@ from app.auth.models import User
 from app.utils.dbUtil import get_db
 from app.utils.passUtil import hash_pwd, verify_pass
 from app.utils import JWTUtil
-from app.utils.emailUtil import send_otp_email
+from app.utils.email import send_otp_email
 from app.utils.S3Util import s3_upload, s3_delete, validate_image
 from app.utils.i18nUtil import resolve_language 
 from app.utils.redisUtils import redis_client
