@@ -25,6 +25,10 @@ class User(Base):
     chatrooms = relationship('Chatroom',secondary='chatroom_members',viewonly=True)
     assigned_cards = relationship("KanbanCard", foreign_keys="KanbanCard.assignee_id", back_populates="assignee")
     created_cards = relationship("KanbanCard", foreign_keys="KanbanCard.created_by",  back_populates="creator")
+    assigned_scrum_issues = relationship("ScrumIssue",foreign_keys="ScrumIssue.assignee_id", back_populates="assignee")
+    reported_scrum_issues = relationship("ScrumIssue",foreign_keys="ScrumIssue.reporter_id", back_populates="reporter")
+    scrum_comments = relationship("IssueComment",foreign_keys="IssueComment.author_id", back_populates="author")
+    created_epics = relationship("Epic",foreign_keys="Epic.created_by", back_populates="creator")
 
     @property
     def workspaces(self):

@@ -28,6 +28,9 @@ class Project(Base):
     members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
     kanban_columns = relationship("KanbanColumn", back_populates="project", cascade="all, delete-orphan")
     kanban_cards = relationship("KanbanCard", back_populates="project", cascade="all, delete-orphan")
+    scrum_epics = relationship("Epic", back_populates="project", cascade="all, delete-orphan")
+    scrum_sprints = relationship("Sprint", back_populates="project", cascade="all, delete-orphan")
+    scrum_issues = relationship("ScrumIssue", back_populates="project", cascade="all, delete-orphan")
 
 class ProjectMember(Base):
     __tablename__ = "project_members"
