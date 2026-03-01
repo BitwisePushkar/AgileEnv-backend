@@ -1,196 +1,254 @@
-from fastapi import APIRouter,Depends,HTTPException,status,Query,Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, BackgroundTasks
 from sqlalchemy.orm import Session
-from typing import Optional,List
+from typing import Optional, List
 from app.utils.dbUtil import get_db
 from app.auth.models import User
-from app.auth.crud import get_user_email,get_user_id
-from app.workspace import crud
-from app.workspace import schemas
+from app.auth.crud import get_user_email, get_user_id, get_profile_id
+from app.workspace import crud, schemas
 from app.utils import JWTUtil
+from app.utils.email import workspace_invitation, workspace_welcome
+from datetime import datetime, timezone
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from app.utils.emailUtil import workspace_invitation
-from app.workspace.model import Workspace
+import logging
 
-router=APIRouter()
-limiter=Limiter(key_func=get_remote_address)
+router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 
-@router.post("/api/workspace/create/",response_model=schemas.WorkspaceResponse,status_code=status.HTTP_201_CREATED)
+FREE_TIER_WORKSPACE_LIMIT = 2
+MAX_INVITE_BATCH = 20
+
+@router.post("/api/workspace/create/",response_model=schemas.WorkspaceResponse,status_code=status.HTTP_201_CREATED,)
 @limiter.limit("20/minute")
-def create_workspace(request: Request,data:schemas.WorkspaceCreate,db:Session=Depends(get_db),
-                     current_user:User=Depends(JWTUtil.get_user)):
-    count=crud.count_workspaces(db,current_user.id)
-    if count >= 2:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Please upgrade to premium version to create more workspaces.")
-    workspace=crud.create_workspace(db,data,current_user.id)
-    crud.add_member(db,workspace,current_user,role="admin")
+def create_workspace(request: Request,data: schemas.WorkspaceCreate,db: Session = Depends(get_db),
+                     current_user: User = Depends(JWTUtil.get_user),):
+    count = crud.count_workspaces(db, current_user.id)
+    if count >= FREE_TIER_WORKSPACE_LIMIT:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=f"Free plan allows up to {FREE_TIER_WORKSPACE_LIMIT} workspaces. Please upgrade to create more.",)
+    workspace = crud.create_workspace(db, data, current_user.id)
+    crud.add_member(db, workspace, current_user, role="admin")
+    logger.info(f"Workspace created: id={workspace.id} by user_id={current_user.id}")
     return workspace
 
-@router.get("/api/workspace/search/", response_model=List[schemas.WorkspaceResponse])
+@router.get("/api/workspace/search/",response_model=List[schemas.WorkspaceResponse],)
 @limiter.limit("100/minute")
-def search_workspaces(request: Request,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user),
-                   search: Optional[str] = Query(None, description="Search by workspace name"),all: bool = Query(False, description="Include all workspaces")):
+def search_workspaces(request: Request,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),
+                      search: Optional[str] = Query(None, description="Partial workspace name search"),
+                      all: bool = Query(False,description="If true, searches all user's workspaces by name. If false, returns user's workspaces.",),):
     if all:
-        workspaces=crud.search_workspace(db,current_user.id,search)
-    else:
-        workspaces=crud.get_user_workspace(db,current_user.id,search)
-    return workspaces
+        return crud.search_workspace(db, current_user.id, search)
+    return crud.get_user_workspace(db, current_user.id, search)
 
-@router.get("/api/workspace/detail/{id}/", response_model=schemas.WorkspaceWithMembers)
+@router.get("/api/workspace/detail/{workspace_id}/",response_model=schemas.WorkspaceWithMembers,)
 @limiter.limit("100/minute")
-def get_workspace(request:Request,id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
-    workspace=crud.get_workspace_id(db,id)
-    if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
-    if not crud.is_member(db,workspace,current_user):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="You are not a member of this workspace")
-    return workspace
-
-@router.put("/api/workspace/update/{id}/", response_model=schemas.WorkspaceResponse)
-@limiter.limit("10/minute")
-def update_workspace(request: Request,id: int,data:schemas.WorkspaceUpdate,db:Session=Depends(get_db)
-                     ,current_user:User=Depends(JWTUtil.get_user)):
-    workspace=crud.get_workspace_id(db,id)
-    if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
-    if not crud.is_admin(workspace,current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only admin can update workspace")
-    workspace=crud.update_workspace(db,id,data)
-    return workspace
-
-@router.post("/api/workspace/invite/{id}/", status_code=status.HTTP_200_OK)
-@limiter.limit("10/minute")
-def invite_users(request: Request,id:int,data:schemas.WorkspaceInvite,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
-    workspace=crud.get_workspace_id(db,id)
-    if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
-    if not crud.is_admin(workspace,current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only workspace admin can invite users")
-    invited = []
-    already_members = []
-    not_found = []
-    for email in data.emails:
-        user=get_user_email(db,email)
-        if not user:
-            not_found.append(email)
-            continue
-        if crud.is_member(db,workspace,user):
-            already_members.append(email)
-            continue
-        workspace_invitation(email=email,name=workspace.name,code=workspace.code,admin=getattr(current_user,"username",current_user.email))
-        invited.append(email)
-    return {"message": "Invitation process completed","invited": invited,"already_members": already_members,
-            "not_found": not_found}
-
-@router.get("/api/workspace/members/{id}/",response_model=List[schemas.MemberDetail])
-@limiter.limit("10/minute")
-def get_workspace_members(request: Request,id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
-    workspace=crud.get_workspace_id(db,id)
-    if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
-    if not crud.is_member(db,workspace,current_user):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="You are not a member of this workspace")
-    members=crud.get_member_details(db,id)
-    return members
-
-@router.delete("/api/workspace/{id}/member/{user_id}/", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("50/minute")
-def remove_member(request: Request,id:int,user_id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
-    workspace=crud.get_workspace_id(db,id)
-    if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
-    if not crud.is_admin(workspace,current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only workspace admin can remove members")
-    user=get_user_id(db,user_id)
-    if not user or not crud.is_member(db,workspace,user):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User not found in workspace")
-    if user.id == workspace.admin_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Cannot remove workspace admin")
-    crud.remove_member(db,workspace,user)
-    return None
-
-@router.post("/api/workspace/join/{id}/",response_model=schemas.WorkspaceResponse)
-@limiter.limit("50/minute")
-def join_workspace(request: Request,id:int,code:str,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
-    workspace=crud.get_workspace_id(db,id)
-    if not workspace or workspace.code!=code:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found or invalid security code")
-    if not workspace.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Workspace is not active")
-    if crud.is_member(db,workspace,current_user):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You are already a member of this workspace")
-    crud.add_member(db,workspace,current_user)
-    return workspace
-
-@router.delete("/api/workspace/delete/{id}/", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("50/minute")
-def delete_workspace(request: Request,id:int,db:Session=Depends(get_db),current_user:User=Depends(JWTUtil.get_user)):
-    workspace=crud.get_workspace_id(db,id)
-    if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found")
-    if not crud.is_admin(workspace,current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only admin can delete workspace")
-    crud.delete_workspace(db,id)
-    return None
-
-@router.get("/api/users/search/", response_model=List[schemas.UserSearchResponse])
-@limiter.limit("100/minute")
-def search_users(request: Request,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),query:Optional[str]=Query(None, description="Search by name"),
-                 limit:int=Query(20,ge=1,le=100, description="Max results to return")):
-    if not query or query.strip() == "":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Search query is required")
-    users = crud.search_users(db,query.strip(),limit)
-    return users
-
-@router.get("/api/workspace/list/", response_model=schemas.PaginatedWorkspaceResponse)
-@limiter.limit("60/minute")
-def list_workspaces(request: Request,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),
-                    page: int = Query(1, ge=1, description="Page number, 1-indexed"),page_size: int = Query(20, ge=1, le=100, description="Number of results per page"),active_only: bool = Query(True, description="Only return active workspaces"),):
-    skip = (page - 1) * page_size
-    workspaces = crud.get_all_workspaces(db, skip=skip, limit=page_size, active_only=active_only)
-    total = crud.count_all_workspaces(db, active_only=active_only)
-    return {"total": total,"page": page,"page_size": page_size,"results": workspaces,}
-
-@router.delete("/api/workspace/{id}/leave/", status_code=status.HTTP_200_OK)
-@limiter.limit("20/minute")
-def leave_workspace(request: Request,id: int,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
-    workspace = crud.get_workspace_id(db, id)
+def get_workspace(request: Request,workspace_id: int,db: Session = Depends(get_db),
+                  current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
     if not crud.is_member(db, workspace, current_user):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not a member of this workspace")
-    crud.leave_workspace(db, workspace, current_user)
-    return {"message": "You have successfully left the workspace"}
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="You are not a member of this workspace",)
+    return workspace
 
-@router.put("/api/workspace/{id}/transfer/", response_model=schemas.WorkspaceResponse)
+@router.put("/api/workspace/update/{workspace_id}/",response_model=schemas.WorkspaceResponse,)
 @limiter.limit("10/minute")
-def transfer_ownership(request: Request,id: int,data: schemas.TransferOwnership,db: Session = Depends(get_db),
-                       current_user: User = Depends(JWTUtil.get_user),):
-    workspace = crud.get_workspace_id(db, id)
+def update_workspace(request: Request,workspace_id: int,data: schemas.WorkspaceUpdate,db: Session = Depends(get_db),
+                     current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
     if not crud.is_admin(workspace, current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the current admin can transfer ownership")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only the workspace admin can update workspace details",)
+    updated = crud.update_workspace(db, workspace_id, data)
+    logger.info(f"Workspace updated: id={workspace_id} by user_id={current_user.id}")
+    return updated
+
+@router.delete("/api/workspace/delete/{workspace_id}/",status_code=status.HTTP_204_NO_CONTENT,)
+@limiter.limit("10/minute")
+def delete_workspace(request: Request,workspace_id: int,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    if not crud.is_admin(workspace, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only the workspace admin can delete this workspace",)
+    crud.delete_workspace(db, workspace_id)
+    logger.info(f"Workspace deleted: id={workspace_id} by user_id={current_user.id}")
+    return {"message": "Successfully deleted the workspace",}
+
+@router.get("/api/workspace/members/{workspace_id}/",response_model=List[schemas.MemberDetail],)
+@limiter.limit("30/minute")
+def get_workspace_members(request: Request,workspace_id: int,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    if not crud.is_member(db, workspace, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="You are not a member of this workspace",)
+    return crud.get_member_details(db, workspace_id)
+
+@router.post("/api/workspace/invite/{workspace_id}/",response_model=schemas.InviteResponse,status_code=status.HTTP_200_OK,)
+@limiter.limit("10/minute")
+def invite_users(request: Request,workspace_id: int,data: schemas.WorkspaceInvite,background_tasks: BackgroundTasks,  
+                 db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    if not crud.is_admin(workspace, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only the workspace admin can invite users",)
+    unique_emails = list(dict.fromkeys(data.emails))
+    if len(unique_emails) > MAX_INVITE_BATCH:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Maximum {MAX_INVITE_BATCH} emails per invite request.",)
+    queued = []
+    already_members = []
+    not_found = []
+    if current_user.email in unique_emails:
+        unique_emails.remove(current_user.email)
+        already_members.append(current_user.email)
+    admin_profile = get_profile_id(db, current_user.id)
+    lang = admin_profile.language if admin_profile and admin_profile.language else "en"
+    admin_username = getattr(current_user, "username", None) or current_user.email
+    for email in unique_emails:
+        user = get_user_email(db, email)
+        if not user or not user.is_active:
+            not_found.append(email)
+            continue
+        if crud.is_member(db, workspace, user):
+            already_members.append(email)
+            continue
+        background_tasks.add_task(workspace_invitation,
+                                  email,
+                                  workspace.name,
+                                  workspace.code,
+                                  admin_username,
+                                  lang,)
+        queued.append(email)
+        logger.info(f"Invitation queued for {email[:4]}*** to workspace {workspace_id}")
+    return {"message": "Invitation process completed",
+            "invited": queued,
+            "already_members": already_members,
+            "not_found": not_found,}
+
+@router.post("/api/workspace/join/{workspace_id}/",response_model=schemas.WorkspaceResponse,)
+@limiter.limit("20/minute")
+def join_workspace(request: Request,workspace_id: int,data: schemas.JoinWorkspace,background_tasks: BackgroundTasks,
+                   db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
+    if not workspace or workspace.code != data.code:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found or invalid security code",)
+    if not workspace.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="This workspace is currently inactive",)
+    if crud.is_member(db, workspace, current_user):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You are already a member of this workspace",)
+    crud.add_member(db, workspace, current_user)
+    logger.info(f"User {current_user.id} joined workspace {workspace_id}")
+    user_profile = get_profile_id(db, current_user.id)
+    user_lang = user_profile.language if user_profile and user_profile.language else "en"
+    admin_user = get_user_id(db, workspace.admin_id)
+    admin_username = (getattr(admin_user, "username", None) or admin_user.email
+                      if admin_user else "Workspace Admin")
+    background_tasks.add_task(
+        workspace_welcome,
+        email=current_user.email,
+        username=getattr(current_user, "username", None) or current_user.email,
+        workspace_name=workspace.name,
+        workspace_description=workspace.description or "",
+        admin_username=admin_username,
+        member_count=workspace.member_count,
+        joined_at=datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC"),
+        language=user_lang,
+    )
+    return workspace
+
+@router.delete("/api/workspace/{workspace_id}/member/{user_id}/",status_code=status.HTTP_204_NO_CONTENT,)
+@limiter.limit("30/minute")
+def remove_member(request: Request,workspace_id: int,user_id: int,db: Session = Depends(get_db),
+                  current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    if not crud.is_admin(workspace, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only the workspace admin can remove members",)
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You cannot remove yourself. Use the leave endpoint or transfer ownership first.",)
+    user = get_user_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if not crud.is_member(db, workspace, user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User is not a member of this workspace",)
+    if user.id == workspace.admin_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Cannot remove the workspace admin. Transfer ownership first.",)
+    crud.remove_member(db, workspace, user)
+    logger.info(f"User {user_id} removed from workspace {workspace_id} by admin {current_user.id}")
+    return {"message": "Successfully removed from workspace"}
+
+@router.delete("/api/workspace/{workspace_id}/leave/",status_code=status.HTTP_200_OK,)
+@limiter.limit("20/minute")
+def leave_workspace(request: Request,workspace_id: int,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    crud.leave_workspace(db, workspace, current_user)
+    logger.info(f"User {current_user.id} left workspace {workspace_id}")
+    return {"message": "You have successfully left the workspace"}
+
+@router.put("/api/workspace/{workspace_id}/transfer/",response_model=schemas.WorkspaceResponse,)
+@limiter.limit("10/minute")
+def transfer_ownership(request: Request,workspace_id: int,data: schemas.TransferOwnership,db: Session = Depends(get_db),
+                       current_user: User = Depends(JWTUtil.get_user),):
+    workspace = crud.get_workspace_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    if not crud.is_admin(workspace, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only the current admin can transfer ownership",)
+    if data.new_admin_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You are already the admin of this workspace",)
     new_admin = get_user_id(db, data.new_admin_id)
     if not new_admin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
+    if not new_admin.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Cannot transfer ownership to an inactive user",)
+    if not crud.is_member(db, workspace, new_admin):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Target user is not a member of this workspace",)
     workspace = crud.transfer_ownership(db, workspace, new_admin, current_user)
+    logger.info(f"Ownership of workspace {workspace_id} transferred from {current_user.id} to {new_admin.id}")
     return workspace
 
-@router.patch("/api/workspace/{id}/member/{user_id}/role/", response_model=schemas.MemberDetail)
+@router.patch("/api/workspace/{workspace_id}/member/{user_id}/role/",response_model=schemas.MemberDetail,)
 @limiter.limit("20/minute")
-def update_member_role(request: Request,id: int,user_id: int,data: schemas.UpdateMemberRole,
+def update_member_role(request: Request,workspace_id: int,user_id: int,data: schemas.UpdateMemberRole,
                        db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
-    workspace = crud.get_workspace_id(db, id)
+    workspace = crud.get_workspace_id(db, workspace_id)
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
     if not crud.is_admin(workspace, current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the workspace admin can update roles")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only the workspace admin can update member roles",)
+    if user_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You cannot change your own role. Use the transfer ownership endpoint instead.",)
     target_user = get_user_id(db, user_id)
     if not target_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return crud.update_member_role(db, workspace, target_user, data.role)
 
-    if target_user.id == current_user.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You cannot change your own role. Use the transfer ownership endpoint instead.")
-    updated_member = crud.update_member_role(db, workspace, target_user, data.role)
-    return updated_member
+@router.get("/api/users/search/",response_model=List[schemas.UserSearchResponse],)
+@limiter.limit("100/minute")
+def search_users(request: Request,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),
+                 query: Optional[str] = Query(None, description="Search by username or display name"),
+                 limit: int = Query(20, ge=1, le=100, description="Max results to return"),):
+    if not query or not query.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Search query is required",)
+    return crud.search_users(db, query.strip(), limit)
+
+@router.get("/api/workspace/list/",response_model=schemas.PaginatedWorkspaceResponse,)
+@limiter.limit("60/minute")
+def list_workspaces(request: Request,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),
+                    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+                    page_size: int = Query(20, ge=1, le=100, description="Results per page"),
+                    active_only: bool = Query(True, description="Only return active workspaces"),):
+    skip = (page - 1) * page_size
+    workspaces = crud.get_user_workspace(db, current_user.id)
+    total = len(workspaces)
+    paginated = workspaces[skip: skip + page_size]
+    return {"total": total,
+            "page": page,
+            "page_size": page_size,
+            "results": paginated,}
