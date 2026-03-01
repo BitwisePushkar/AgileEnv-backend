@@ -11,11 +11,6 @@ class Settings(BaseSettings):
     DB_DATABASE: str
     DB_USERNAME: str
     DB_PASSWORD: str
-    SMTP_HOST: str
-    SMTP_PORT: int
-    SMTP_USER: str
-    SMTP_PASSWORD: str
-    FROM_EMAIL: str
     GITHUB_CLIENT_ID_WEB: str
     GITHUB_CLIENT_SECRET_WEB: str
     GITHUB_REDIRECT_URI_WEB: str
@@ -34,7 +29,12 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     AWS_REGION: str
     S3_BUCKET_NAME: str
- 
+    FROM_EMAIL: str
+    SMTP_HOST: str   
+    SMTP_PORT: int    
+    SMTP_USER: str     
+    SMTP_PASSWORD: str
+
     class Config:
         env_file = "app/.env"
         env_file_encoding = "utf-8"

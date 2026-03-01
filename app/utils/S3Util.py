@@ -1,54 +1,69 @@
 import boto3
 from botocore.exceptions import ClientError
-from functools import lru_cache
-from app import config
+from app.utils.settings import settings
 import uuid
 import logging
 
 logger = logging.getLogger(__name__)
 
-@lru_cache
-def get_settings():
-    return config.Settings()
+_s3_client = boto3.client("s3",
+                          aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                          aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                          region_name=settings.AWS_REGION,)
 
-settings=get_settings()
+_MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024 
+_ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
-AWS_ACCESS_KEY_ID=settings.AWS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY=settings.AWS_SECRET_ACCESS_KEY
-AWS_REGION=settings.AWS_REGION
-S3_BUCKET_NAME=settings.S3_BUCKET_NAME
+def validate_image(name: str, size: int | None = None) -> bool:
+    if "." not in name:
+        logger.warning(f"File has no extension: {name}")
+        return False
+    file_ext = name.lower().rsplit(".", 1)[-1] 
+    if file_ext not in _ALLOWED_EXTENSIONS:
+        logger.warning(f"Rejected file extension: {file_ext}")
+        return False
+    if size is not None and size > _MAX_IMAGE_SIZE_BYTES:
+        logger.warning(f"File too large: {size} bytes (max {_MAX_IMAGE_SIZE_BYTES})")
+        return False
+    return True
 
-s3_client=boto3.client('s3',aws_access_key_id=AWS_ACCESS_KEY_ID,aws_secret_access_key=AWS_SECRET_ACCESS_KEY,region_name=AWS_REGION)
-
-def s3_upload(content:bytes,name:str,type:str):
+def s3_upload(content: bytes, name: str, content_type: str) -> str | None:
+    if len(content) > _MAX_IMAGE_SIZE_BYTES:
+        logger.error(f"s3_upload called with oversized content: {len(content)} bytes")
+        return None
+    ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
+    unique_name = f"profile_images/{uuid.uuid4()}.{ext}"
     try:
-        ext=name.split('.')[-1] if '.' in name else ''
-        unique_name=f"profile_images/{uuid.uuid4()}.{ext}"
-        s3_client.put_object(Bucket=S3_BUCKET_NAME,Key=unique_name,Body=content,ContentType=type)
-        s3_url = f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{unique_name}"
-        logger.info(f"File uploaded successfully to S3: {s3_url}")
+        _s3_client.put_object(Bucket=settings.S3_BUCKET_NAME,
+                              Key=unique_name,
+                              Body=content,
+                              ContentType=content_type,)
+        s3_url = f"https://{settings.S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{unique_name}"
+        logger.info(f"Uploaded to S3: {unique_name}")
         return s3_url
     except ClientError as e:
-        logger.error(f"Error uploading file to S3: {e}")
+        logger.error(f"S3 upload failed: {e.response['Error']['Code']} — {e.response['Error']['Message']}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error during S3 upload: {e}")
         return None
 
-def s3_delete(url:str)->bool:
+def s3_delete(url: str) -> bool:
+    expected_prefix = f"https://{settings.S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/"
+    if not url.startswith(expected_prefix):
+        logger.error(f"s3_delete received a URL that doesn't match expected S3 format. "f"Expected prefix: {expected_prefix} — Got: {url[:80]}")
+        return False
+    key = url[len(expected_prefix):]  
+    if not key:
+        logger.error("s3_delete: extracted key is empty — malformed URL")
+        return False
     try:
-        key=url.split(f"{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/")[1]
-        s3_client.delete_object(Bucket=S3_BUCKET_NAME,Key=key)
-        logger.info(f"File deleted successfully from S3: {key}")
-        return True 
+        _s3_client.delete_object(Bucket=settings.S3_BUCKET_NAME, Key=key)
+        logger.info(f"Deleted from S3: {key}")
+        return True
+    except ClientError as e:
+        logger.error(f"S3 delete failed: {e.response['Error']['Code']} — {e.response['Error']['Message']}")
+        return False
     except Exception as e:
-        logger.error(f"Error deleting file from S3: {e}")
+        logger.error(f"Unexpected error during S3 delete: {e}")
         return False
-
-def validate_image(name:str,size:int,max_size:int=5):
-    allowed={'png','jpg','jpeg','gif','webp'}
-    file_ext=name.lower().split('.')[-1]
-    if file_ext not in allowed:
-        return False
-    if size>0:
-        max_size_bytes=max_size * 1024 * 1024
-        if size>max_size_bytes:
-            return False
-    return True

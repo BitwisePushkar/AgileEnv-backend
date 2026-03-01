@@ -1,253 +1,271 @@
-from pydantic import BaseModel,Field,EmailStr,field_validator
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import Optional
 import re
 
+SUPPORTED_LANGUAGE_TAGS = {"en","hi","fr","zh"}  
+
 class UserCreate(BaseModel):
-    email:EmailStr=Field(...,example="hell12@gmail.com")
-    password:str=Field(...,example="Hell123#")
-    password2: str=Field(...,example="Hell123#")
-    username:str=Field(...,example="Hellboy")
-    
-    @field_validator('password')
+    email: EmailStr = Field(..., example="hello@example.com")
+    password: str = Field(..., example="Hello123#")
+    password2: str = Field(..., example="Hello123#")
+    username: str = Field(..., example="Hellboy")
+
+    @field_validator("password")
     @classmethod
     def val_password(cls, v):
         if len(v) < 8 or len(v) > 50:
-            raise ValueError("Password must be at least 8 characters and max 50 characters.")
-        if not re.search(r'[A-Z]', v):
+            raise ValueError("Password must be 8-50 characters.")
+        if not re.search(r"[A-Z]", v):
             raise ValueError("Password must contain at least one uppercase letter.")
-        if not re.search(r'[a-z]', v):
+        if not re.search(r"[a-z]", v):
             raise ValueError("Password must contain at least one lowercase letter.")
-        if not re.search(r'[0-9]', v):
+        if not re.search(r"[0-9]", v):
             raise ValueError("Password must contain at least one number.")
         if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', v):
             raise ValueError("Password must contain at least one special character.")
         return v
-    
-    @field_validator('password2')
+
+    @field_validator("password2")
     @classmethod
-    def passwords(cls, v, info):
-        if 'password' in info.data and v != info.data['password']:
-            raise ValueError('Passwords do not match')
+    def passwords_match(cls, v, info):
+        if "password" in info.data and v != info.data["password"]:
+            raise ValueError("Passwords do not match")
         return v
-    
-    @field_validator('username')
+
+    @field_validator("username")
     @classmethod
     def validate_username(cls, v):
-        if len(v)<3 or len(v)>50:
-            raise ValueError("Username must be 3-50 characters")
-        if not re.match(r'^[a-zA-Z0-9_@]+$', v):
+        if len(v) < 5 or len(v) > 50:
+            raise ValueError("Username must be 5-50 characters")
+        if not re.match(r"^[a-zA-Z0-9_@]+$", v):
             raise ValueError("Username can only contain letters, numbers, underscores and @")
         if v[0].isdigit():
             raise ValueError("Username cannot start with a number")
         return v
-    
+
 class UserLogin(BaseModel):
-    username:str=Field(...,example="user@example.com", description="Email or username")
-    password:str=Field(...,example="Hell123#", min_length=4)
-    @field_validator('username')
+    username: str = Field(..., example="user@example.com", description="Email or username")
+    password: str = Field(..., example="Hello123#", min_length=4)
+
+    @field_validator("username")
     @classmethod
     def validate_username(cls, v):
-        if not v or len(v.strip())==0:
-            raise ValueError('Username/email cannot be empty')
+        if not v or len(v.strip()) == 0:
+            raise ValueError("Username/email cannot be empty")
         return v.strip()
-    @field_validator('password')
+
+    @field_validator("password")
     @classmethod
     def validate_password(cls, v):
         if not v or len(v) == 0:
-            raise ValueError('Password cannot be empty')
+            raise ValueError("Password cannot be empty")
         return v
 
 class EmailRequest(BaseModel):
-    email:EmailStr=Field(...,example="hell12@gmail.com")
-    
+    email: EmailStr = Field(..., example="hello@example.com")
+
 class PasswordResetRequest(BaseModel):
-    email:str=Field(...,example="hell12@gmail.com")
-    otp:str=Field(...,example="123456",min_length=6,max_length=6)
-    @field_validator('otp')
+    email: str = Field(..., example="hello@example.com")
+    otp: str = Field(..., example="123456", min_length=6, max_length=6)
+
+    @field_validator("otp")
     @classmethod
     def validate_otp(cls, v):
         if not v.isdigit():
-            raise ValueError('OTP must contain only digits')
+            raise ValueError("OTP must contain only digits")
         if len(v) != 6:
-            raise ValueError('OTP must be exactly 6 digits')
+            raise ValueError("OTP must be exactly 6 digits")
         return v
-    
-class PasswordResetToken(BaseModel):
-    message:str
-    reset_token:str
-    expires_in:int=300
-    
-class PasswordResetComplete(BaseModel):
-    reset_token:str=Field(...,example="abc123xyz")
-    password:str=Field(...,example="hell123#")
-    password2: str=Field(...,example="hell123#")
 
-    @field_validator('password')
+class PasswordResetToken(BaseModel):
+    message: str
+    reset_token: str
+    expires_in: int = 300
+
+class PasswordResetComplete(BaseModel):
+    reset_token: str = Field(..., example="abc123xyz")
+    password: str = Field(..., example="Hello123#")
+    password2: str = Field(..., example="Hello123#")
+
+    @field_validator("password")
     @classmethod
     def val_password(cls, v):
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters.")
-        if not re.search(r'[A-Z]', v):
+        if not re.search(r"[A-Z]", v):
             raise ValueError("Password must contain at least one uppercase letter.")
-        if not re.search(r'[a-z]', v):
+        if not re.search(r"[a-z]", v):
             raise ValueError("Password must contain at least one lowercase letter.")
-        if not re.search(r'[0-9]', v):
+        if not re.search(r"[0-9]", v):
             raise ValueError("Password must contain at least one number.")
         if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', v):
             raise ValueError("Password must contain at least one special character.")
         return v
-    
-    @field_validator('password2')
+
+    @field_validator("password2")
     @classmethod
-    def passwords(cls, v, info):
-        if 'password' in info.data and v != info.data['password']:
-            raise ValueError('Passwords do not match')
+    def passwords_match(cls, v, info):
+        if "password" in info.data and v != info.data["password"]:
+            raise ValueError("Passwords do not match")
         return v
-    
+
 class Token(BaseModel):
-    access_token:str
-    refresh_token:str=None
-    token_type:str="bearer"
-    username: str
-    email: str
+    access_token: str
+    refresh_token: str = None
+    token_type: str = "bearer"
+    username: str = None
+    email: str = None
 
 class RefreshToken(BaseModel):
-    refresh_token:str
+    refresh_token: str
 
 class OTPRequest(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
-    purpose: str = Field(..., example="registration or password_reset")
-    
-    @field_validator('purpose')
+    purpose: str = Field(..., example="registration")
+
+    @field_validator("purpose")
     @classmethod
     def validate_purpose(cls, v):
-        if v not in ['registration', 'password_reset']:
-            raise ValueError('Purpose must be either "registration" or "password_reset"')
+        if v not in ["registration", "password_reset"]:
+            raise ValueError('Purpose must be "registration" or "password_reset"')
         return v
 
 class OTPVerify(BaseModel):
     email: EmailStr = Field(..., example="user@example.com")
     otp_code: str = Field(..., example="123456", min_length=6, max_length=6)
     purpose: str = Field(..., example="registration")
-    
-    @field_validator('otp_code')
+
+    @field_validator("otp_code")
     @classmethod
     def validate_otp(cls, v):
         if not v.isdigit():
-            raise ValueError('OTP must contain only digits')
+            raise ValueError("OTP must contain only digits")
         if len(v) != 6:
-            raise ValueError('OTP must be exactly 6 digits')
+            raise ValueError("OTP must be exactly 6 digits")
         return v
-    
-    @field_validator('purpose')
+
+    @field_validator("purpose")
     @classmethod
     def validate_purpose(cls, v):
-        if v not in ['registration', 'password_reset']:
-            raise ValueError('Purpose must be either "registration" or "password_reset"')
+        if v not in ["registration", "password_reset"]:
+            raise ValueError('Purpose must be "registration" or "password_reset"')
         return v
 
 class OTPResponse(BaseModel):
     message: str
     email: EmailStr
-    
+
 class GitHubAuthResponse(BaseModel):
-    access_token:str
-    refresh_token:str
-    token_type:str="bearer"
-    user:dict
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: dict
 
 class GitHubCallBack(BaseModel):
-    code:str=Field(...,description="auth code by github")
-    state:str=Field(...,description="protection state")
+    code: str = Field(..., description="Auth code from GitHub")
+    state: str = Field(..., description="CSRF protection state")
 
 class OAuthLink(BaseModel):
-    code:str=Field(...,description="auth code for oauth")
+    code: str = Field(..., description="Auth code for OAuth")
 
 class GoogleAuthResponse(BaseModel):
-    access_token:str
-    refresh_token:str
-    token_type:str="bearer"
-    user:dict
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: dict
 
 class GoogleCallBack(BaseModel):
-    code:str=Field(...,description="Authorization code from Google")
-    state:str=Field(...,description="CSRF protection state")
+    code: str = Field(..., description="Authorization code from Google")
+    state: str = Field(..., description="CSRF protection state")
 
 class EmailCheckResponse(BaseModel):
-    is_email:bool
-    is_verified:Optional[bool]=None
+    is_email: bool
+    is_verified: Optional[bool] = None
 
 class SetPassword(BaseModel):
-    password:str=Field(...,example="NewPass@123")
-    password2:str=Field(...,example="NewPass@123")
-    
-    @field_validator('password')
+    password: str = Field(..., example="NewPass@123")
+    password2: str = Field(..., example="NewPass@123")
+
+    @field_validator("password")
     @classmethod
     def val_password(cls, v):
         if len(v) < 8 or len(v) > 50:
-            raise ValueError("Password must be at least 8 characters and max 50 characters.")
-        if not re.search(r'[A-Z]', v):
+            raise ValueError("Password must be 8-50 characters.")
+        if not re.search(r"[A-Z]", v):
             raise ValueError("Password must contain at least one uppercase letter.")
-        if not re.search(r'[a-z]', v):
+        if not re.search(r"[a-z]", v):
             raise ValueError("Password must contain at least one lowercase letter.")
-        if not re.search(r'[0-9]', v):
+        if not re.search(r"[0-9]", v):
             raise ValueError("Password must contain at least one number.")
         if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', v):
             raise ValueError("Password must contain at least one special character.")
         return v
-    
-    @field_validator('password2')
+
+    @field_validator("password2")
     @classmethod
-    def passwords(cls, v, info):
-        if 'password' in info.data and v != info.data['password']:
-            raise ValueError('Passwords do not match')
+    def passwords_match(cls, v, info):
+        if "password" in info.data and v != info.data["password"]:
+            raise ValueError("Passwords do not match")
         return v
-    
+
 class Profile(BaseModel):
-    name:Optional[str]=Field(...,example="King Singh",max_length=100)
-    post:Optional[str]=Field(...,example="Software Engineer",max_length=100)
-    reason:Optional[str]=Field(None,example="to create new thing")
-    
+    name: Optional[str] = Field(None, example="King Singh", max_length=100)
+    post: Optional[str] = Field(None, example="Software Engineer", max_length=100)
+    reason: Optional[str] = Field(None, example="To build great things")
+    language: Optional[str] = Field(None, example="en")
+
     @field_validator("name")
     @classmethod
     def validate_full_name(cls, v):
         if v is not None:
-            v=v.strip()
+            v = v.strip()
             if len(v) < 2:
                 raise ValueError("Full name must be at least 2 characters")
             if len(v) > 100:
                 raise ValueError("Full name must not exceed 100 characters")
         return v
-    
-    @field_validator('post')
+
+    @field_validator("post")
     @classmethod
-    def validate_post(cls,v):
-        if v is None:
-            raise ValueError("post is required")
-        v=v.strip()
-        if not v:
-            raise ValueError("post not empty")
-        if len(v)>100:
-            raise ValueError("atmost 100 characters")
+    def validate_post(cls, v):
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValueError("Post cannot be empty if provided")
+            if len(v) > 100:
+                raise ValueError("Post must not exceed 100 characters")
         return v
-    
-    @field_validator('reason')
+
+    @field_validator("reason")
     @classmethod
     def validate_reason(cls, v):
         if v is not None:
-            v=v.strip()
-            if len(v)>1000:
-                raise ValueError("atmost 1000 characters")
+            v = v.strip()
+            if len(v) > 1000:
+                raise ValueError("Reason must not exceed 1000 characters")
+        return v
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, v):
+        if v is not None:
+            v = v.strip().lower()
+            if v not in SUPPORTED_LANGUAGE_TAGS:
+                raise ValueError(f"Unsupported language. Supported: {', '.join(sorted(SUPPORTED_LANGUAGE_TAGS))}")
         return v
 
 class ProfileResponse(BaseModel):
     user_id: int
     name: Optional[str] = None
-    email:str
-    username:str
+    email: str
+    username: str
     post: Optional[str] = None
-    reason:Optional[str] = None
-    image_url:Optional[str] = None
+    reason: Optional[str] = None
+    image_url: Optional[str] = None
+    language: Optional[str] = "en"
 
     class Config:
         from_attributes = True
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
