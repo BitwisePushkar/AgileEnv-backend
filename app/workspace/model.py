@@ -4,6 +4,10 @@ from app.utils.dbUtil import Base
 from datetime import datetime, timezone
 import enum
 
+class JoinPolicy(enum.Enum):
+    INVITE_ONLY = "invite_only" 
+    CODE_ONLY = "code_only"
+    
 class InviteStatus(enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
@@ -17,6 +21,7 @@ class Workspace(Base):
     description = Column(Text, nullable=True)
     code = Column(String(8), unique=True, index=True, nullable=False)
     admin_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    join_policy = Column(Enum(JoinPolicy),default=JoinPolicy.INVITE_ONLY,nullable=False,)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True),default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc),)
