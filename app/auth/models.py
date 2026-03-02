@@ -30,6 +30,7 @@ class User(Base):
     reported_scrum_issues = relationship("ScrumIssue", foreign_keys="ScrumIssue.reporter_id", back_populates="reporter")
     scrum_comments = relationship("IssueComment", foreign_keys="IssueComment.author_id", back_populates="author")
     created_epics = relationship("Epic", foreign_keys="Epic.created_by", back_populates="creator")
+    invited_users = relationship("WorkspaceInvite",back_populates="inviter")
 
     @property
     def workspaces(self):

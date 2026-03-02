@@ -1,6 +1,6 @@
 from app.utils.email.core import _send_email, _get_template
 
-def _workspace_invite_html_en(name: str, code: str, admin: str) -> str:
+def _workspace_invite_html(name: str, code: str, admin: str) -> str:
     return f"""
     <html>
     <body style="font-family: Arial; padding: 20px; background: #f0f0f0;">
@@ -27,98 +27,12 @@ def _workspace_invite_html_en(name: str, code: str, admin: str) -> str:
     </html>
     """
 
-def _workspace_invite_html_hi(name: str, code: str, admin: str) -> str:
-    return f"""
-    <html>
-    <body style="font-family: Arial; padding: 20px; background: #f0f0f0;">
-        <div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px;
-                    border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-            <h2 style="color: #4a5568;">आपको आमंत्रित किया गया है! 🎊</h2>
-            <p><strong>{admin}</strong> ने आपको इस वर्कस्पेस में शामिल होने के लिए आमंत्रित किया है:</p>
-            <div style="background: #f7fafc; padding: 20px; border-radius: 8px;
-                        margin: 24px 0; border: 1px solid #e2e8f0;">
-                <h3 style="margin: 0 0 12px 0; color: #2d3748;">{name}</h3>
-                <p style="margin: 0; color: #555;">जुड़ने के लिए इस सुरक्षा कोड का उपयोग करें:</p>
-                <div style="margin-top: 12px; text-align: center;">
-                    <code style="background: #edf2f7; padding: 10px 20px; border-radius: 6px;
-                                 font-size: 20px; letter-spacing: 4px; color: #2d3748;
-                                 font-weight: bold;">{code}</code>
-                </div>
-            </div>
-            <p style="color: #555;">Agile App खोलें, <strong>Join Workspace</strong> पर जाएं,
-               वर्कस्पेस ID और ऊपर दिया गया कोड दर्ज करें।</p>
-            <p style="color: #888; font-size: 13px;">यदि आप इस आमंत्रण की उम्मीद नहीं कर रहे थे,
-               तो इस ईमेल को अनदेखा करें।</p>
-        </div>
-    </body>
-    </html>
-    """
-
-def _workspace_invite_html_fr(name: str, code: str, admin: str) -> str:
-    return f"""
-    <html>
-    <body style="font-family: Arial; padding: 20px; background: #f0f0f0;">
-        <div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px;
-                    border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-            <h2 style="color: #4a5568;">Vous avez été invité(e) ! 🎊</h2>
-            <p><strong>{admin}</strong> vous invite à rejoindre l'espace de travail :</p>
-            <div style="background: #f7fafc; padding: 20px; border-radius: 8px;
-                        margin: 24px 0; border: 1px solid #e2e8f0;">
-                <h3 style="margin: 0 0 12px 0; color: #2d3748;">{name}</h3>
-                <p style="margin: 0; color: #555;">Utilisez ce code de sécurité pour rejoindre :</p>
-                <div style="margin-top: 12px; text-align: center;">
-                    <code style="background: #edf2f7; padding: 10px 20px; border-radius: 6px;
-                                 font-size: 20px; letter-spacing: 4px; color: #2d3748;
-                                 font-weight: bold;">{code}</code>
-                </div>
-            </div>
-            <p style="color: #555;">Ouvrez Agile App, allez dans <strong>Rejoindre un espace</strong>,
-               entrez l'ID de l'espace et le code ci-dessus.</p>
-            <p style="color: #888; font-size: 13px;">Si vous n'attendiez pas cette invitation,
-               vous pouvez ignorer cet e-mail.</p>
-        </div>
-    </body>
-    </html>
-    """
-
-def _workspace_invite_html_zh(name: str, code: str, admin: str) -> str:
-    return f"""
-    <html>
-    <body style="font-family: Arial; padding: 20px; background: #f0f0f0;">
-        <div style="max-width: 600px; margin: 0 auto; background: #ffffff; padding: 30px;
-                    border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-            <h2 style="color: #4a5568;">您收到了邀请！🎊</h2>
-            <p><strong>{admin}</strong> 邀请您加入工作空间：</p>
-            <div style="background: #f7fafc; padding: 20px; border-radius: 8px;
-                        margin: 24px 0; border: 1px solid #e2e8f0;">
-                <h3 style="margin: 0 0 12px 0; color: #2d3748;">{name}</h3>
-                <p style="margin: 0; color: #555;">请使用以下安全码加入：</p>
-                <div style="margin-top: 12px; text-align: center;">
-                    <code style="background: #edf2f7; padding: 10px 20px; border-radius: 6px;
-                                 font-size: 20px; letter-spacing: 4px; color: #2d3748;
-                                 font-weight: bold;">{code}</code>
-                </div>
-            </div>
-            <p style="color: #555;">打开 Agile App，进入 <strong>加入工作空间</strong>，
-               输入工作空间 ID 和上方的安全码。</p>
-            <p style="color: #888; font-size: 13px;">如果您未预期收到此邀请，可以安全地忽略此邮件。</p>
-        </div>
-    </body>
-    </html>
-    """
-
 _WORKSPACE_INVITE_TEMPLATES = {
-    "en": _workspace_invite_html_en,
-    "hi": _workspace_invite_html_hi,
-    "fr": _workspace_invite_html_fr,
-    "zh": _workspace_invite_html_zh,
+    "en": _workspace_invite_html,
 }
 
 _WORKSPACE_INVITE_SUBJECTS = {
     "en": "You're invited to join {name} on Agile App",
-    "hi": "Agile App पर {name} में शामिल होने का आमंत्रण",
-    "fr": "Invitation à rejoindre {name} sur Agile App",
-    "zh": "邀请您加入 Agile App 上的 {name}",
 }
 
 def _workspace_welcome_html_en(username, workspace_name, workspace_description, admin_username,
@@ -595,4 +509,104 @@ def workspace_welcome(email: str,username: str,workspace_name: str,workspace_des
                                admin_username, member_count, joined_at)
     subject_tpl = _WORKSPACE_WELCOME_SUBJECTS.get(language) or _WORKSPACE_WELCOME_SUBJECTS["en"]
     subject = subject_tpl.format(name=workspace_name)
+    return _send_email(email, subject, html)
+
+def _workspace_invite_new_user_html(name: str, code: str, admin: str) -> str:
+    return f"""
+    <html>
+    <body style="margin:0;padding:0;background-color:#f4f6f8;font-family:Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0"
+               style="background-color:#f4f6f8;padding:40px 0;">
+            <tr><td align="center">
+                <table width="600" cellpadding="0" cellspacing="0"
+                       style="background:#ffffff;border-radius:12px;
+                              box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;">
+                    <tr>
+                        <td style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+                                   padding:40px;text-align:center;">
+                            <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:700;">Agile App</h1>
+                            <p style="margin:8px 0 0 0;color:rgba(255,255,255,0.85);font-size:15px;">
+                                You've been invited to a workspace 🎊
+                            </p>
+                        </td>
+                    </tr>
+                    <tr><td style="padding:40px;">
+                        <p style="margin:0 0 20px 0;color:#2d3748;font-size:16px;">
+                            Hi there,
+                        </p>
+                        <p style="margin:0 0 20px 0;color:#555;font-size:15px;line-height:1.6;">
+                            <strong>{admin}</strong> has invited you to join the workspace
+                            <strong>{name}</strong> on Agile App.
+                        </p>
+                        <table width="100%" style="background:#f7fafc;border-radius:10px;
+                                                   border:1px solid #e2e8f0;margin-bottom:16px;">
+                            <tr><td style="padding:20px 24px;">
+                                <p style="margin:0 0 6px 0;font-size:11px;color:#a0aec0;
+                                          text-transform:uppercase;letter-spacing:1px;font-weight:600;">
+                                    Step 1
+                                </p>
+                                <p style="margin:0;color:#1a202c;font-size:15px;font-weight:700;">
+                                    Create your free Agile App account
+                                </p>
+                                <p style="margin:6px 0 0 0;color:#555;font-size:14px;line-height:1.5;">
+                                    Visit <strong>agileapp.com</strong> and sign up using
+                                    <strong>this email address</strong> so your invite is recognised automatically.
+                                </p>
+                            </td></tr>
+                        </table>
+                        <table width="100%" style="background:#f7fafc;border-radius:10px;
+                                                   border:1px solid #e2e8f0;margin-bottom:24px;">
+                            <tr><td style="padding:20px 24px;">
+                                <p style="margin:0 0 6px 0;font-size:11px;color:#a0aec0;
+                                          text-transform:uppercase;letter-spacing:1px;font-weight:600;">
+                                    Step 2
+                                </p>
+                                <p style="margin:0;color:#1a202c;font-size:15px;font-weight:700;">
+                                    Join the workspace using this code
+                                </p>
+                                <p style="margin:6px 0 12px 0;color:#555;font-size:14px;">
+                                    Go to <strong>Join Workspace</strong> in the app, enter the workspace name
+                                    <strong>{name}</strong> and paste the code below:
+                                </p>
+                                <div style="text-align:center;">
+                                    <code style="background:#edf2f7;padding:12px 24px;border-radius:8px;
+                                                 font-size:22px;letter-spacing:6px;color:#2d3748;
+                                                 font-weight:bold;display:inline-block;">{code}</code>
+                                </div>
+                            </td></tr>
+                        </table>
+                        <table width="100%" style="background:#fffff0;border-radius:8px;
+                                                   border:1px solid #f6e05e;margin-bottom:32px;">
+                            <tr><td style="padding:16px 20px;">
+                                <p style="margin:0;color:#744210;font-size:14px;">
+                                    ⚠️ You must register with <strong>this email address</strong>
+                                    for the invite to be recognised. Using a different address will require
+                                    a new invite from the workspace admin.
+                                </p>
+                            </td></tr>
+                        </table>
+                        <p style="margin:0;color:#555;font-size:14px;line-height:1.6;">
+                            If you were not expecting this invitation, you can safely ignore this email.
+                            No account will be created without your action.
+                        </p>
+                    </td></tr>
+                    <tr>
+                        <td style="background:#f7fafc;padding:24px 40px;
+                                   border-top:1px solid #e2e8f0;text-align:center;">
+                            <p style="margin:0;color:#a0aec0;font-size:12px;line-height:1.6;">
+                                This is an automated message from Agile App.<br>
+                                Sent on behalf of <strong>{admin}</strong>.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td></tr>
+        </table>
+    </body>
+    </html>
+    """
+
+def workspace_invitation_new_user(email: str, name: str, code: str, admin: str,) -> bool:
+    subject = f"You're invited to join {name} on Agile App — create your account to get started"
+    html = _workspace_invite_new_user_html(name, code, admin)
     return _send_email(email, subject, html)

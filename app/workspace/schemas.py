@@ -1,16 +1,9 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 import re
 
-class WorkspaceCreate(BaseModel):
-    name: str = Field(..., min_length=3, max_length=100, example="Acme Engineering")
-    description: Optional[str] = Field(None, max_length=500, example="Main engineering workspace")
-    code: str = Field(...,description="8-character security code",example="ABcd1234",)
-
-    @field_validator("code")
-    @classmethod
-    def validate_code(cls, v: str) -> str:
+def _validate_code(v: str) -> str:
         if not re.fullmatch(r"[A-Za-z0-9]{8}", v):
             raise ValueError("Code must be exactly 8 alphanumeric characters")
         uc = sum(c.isupper() for c in v)
@@ -27,6 +20,16 @@ class WorkspaceCreate(BaseModel):
         if len(set(v)) < 6:
             raise ValueError("Code must contain at least 6 unique characters")
         return v
+
+class WorkspaceCreate(BaseModel):
+    name: str = Field(..., min_length=3, max_length=100, example="Acme Engineering")
+    description: Optional[str] = Field(None, max_length=500, example="Main engineering workspace")
+    code: str = Field(...,description="8-character security code",example="ABcd1234",)
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v: str) -> str:
+        return _validate_code(v)
 
     @field_validator("name")
     @classmethod
@@ -49,12 +52,16 @@ class WorkspaceUpdate(BaseModel):
             if not v:
                 raise ValueError("Name cannot be empty or whitespace")
         return v
+    
+class WorkspaceSettingsUpdate(BaseModel):
+    join_policy: Literal["invite_only", "code_only"] = Field(...,description=("invite_only = only invited emails can join (secure). "
+                                                                              "code_only = anyone with the code can join (fast onboarding, use temporarily)."),)
 
 class JoinWorkspace(BaseModel):
     code: str = Field(..., description="8-character workspace security code", example="ABcd1234")
 
-class WorkspaceInvite(BaseModel):
-    emails: List[EmailStr] = Field(..., min_length=1, description="List of email addresses to invite")
+class InviteRequest(BaseModel):
+    emails: list[EmailStr] = Field(..., min_length=1, description="List of emails to invite (max 20)")
 
 class TransferOwnership(BaseModel):
     new_admin_id: int = Field(..., description="User ID of the member to promote as new admin")
@@ -90,23 +97,60 @@ class MemberDetail(BaseModel):
     class Config:
         from_attributes = True
 
-class WorkspaceResponse(BaseModel):
+class WorkspaceMemberResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
     admin_id: int
-    code: str
+    is_active: bool
+    join_policy: str           
+    member_count: Optional[int] = None
     created_at: datetime
     updated_at: datetime
-    is_active: bool
-    member_count: Optional[int] = None
 
     class Config:
         from_attributes = True
 
-class WorkspaceWithMembers(WorkspaceResponse):
+class WorkspaceAdminResponse(WorkspaceMemberResponse):
+    code: str
+
+    class Config:
+        from_attributes = True
+
+class WorkspaceWithMembers(WorkspaceAdminResponse):
     admin: UserBasic
     members: List[UserBasic]
+
+class WorkspaceMemberWithMembers(WorkspaceMemberResponse):
+    admin: UserBasic
+    members: List[UserBasic]
+
+class WorkspaceSettingsResponse(BaseModel):
+    id: int
+    name: str
+    join_policy: str
+    is_active: bool
+    code: str  
+
+    class Config:
+        from_attributes = True
+
+class RotateCodeResponse(BaseModel):
+    message: str
+    new_code: str
+    workspace_id: int
+
+class PaginatedWorkspaceResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    results: List[WorkspaceMemberResponse] 
+
+class InviteResponse(BaseModel):
+    message: str
+    invited_existing: List[str] = [] 
+    invited_new: List[str] = [] 
+    already_members: List[str] = [] 
 
 class UserSearchResponse(BaseModel):
     id: int
@@ -118,15 +162,3 @@ class UserSearchResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-class PaginatedWorkspaceResponse(BaseModel):
-    total: int
-    page: int
-    page_size: int
-    results: List[WorkspaceResponse]
-
-class InviteResponse(BaseModel):
-    message: str
-    invited: List[str]      
-    already_members: List[str]
-    not_found: List[str]
