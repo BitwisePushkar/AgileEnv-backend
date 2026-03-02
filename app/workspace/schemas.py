@@ -127,6 +127,9 @@ class PaginatedWorkspaceResponse(BaseModel):
 
 class InviteResponse(BaseModel):
     message: str
-    invited: List[str]      
-    already_members: List[str]
-    not_found: List[str]
+    invited_existing: List[str] = [] 
+    invited_new: List[str] = [] 
+    already_members: List[str] = []  
+
+class InviteRequest(BaseModel):
+    emails: list[EmailStr]

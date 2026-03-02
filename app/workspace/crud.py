@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from app.workspace.model import Workspace, WorkspaceMember
+from app.workspace.model import Workspace, WorkspaceMember, WorkspaceInvite, InviteStatus
 from app.auth.models import User, Profile
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -190,3 +191,43 @@ def search_users(db: Session, query: str, limit: int = 20) -> List[dict]:
              "name": profile.name if profile else None,
              "post": profile.post if profile else None,
              "image_url": profile.image_url if profile else None,}for user, profile in results]
+
+def get_existing_invite(db: Session, workspace_id: int, email: str) -> Optional[WorkspaceInvite]:
+    return (db.query(WorkspaceInvite).filter(WorkspaceInvite.workspace_id == workspace_id,WorkspaceInvite.email == email,
+                                             WorkspaceInvite.status == InviteStatus.PENDING,).first())
+
+def create_invite(db: Session, workspace_id: int, email: str, invited_by: int) -> WorkspaceInvite:
+    existing = get_existing_invite(db, workspace_id, email)
+    if existing:
+        existing.created_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    invite = WorkspaceInvite(workspace_id=workspace_id,
+                             email=email,
+                             invited_by=invited_by,
+                             status=InviteStatus.PENDING,)
+    db.add(invite)
+    db.commit()
+    db.refresh(invite)
+    return invite
+
+def accept_invite(db: Session, workspace_id: int, email: str) -> None:
+    invite = get_existing_invite(db, workspace_id, email)
+    if invite:
+        invite.status = InviteStatus.ACCEPTED
+        db.commit()
+
+def get_workspace_or_404(db: Session, workspace_id: int) -> Workspace:
+    workspace = get_workspace_id(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found",)
+    return workspace
+
+def require_workspace_admin(db: Session,workspace: Workspace,user_id: int,) -> None:
+    if not is_admin(workspace, user_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Admin access required",)
+    
+def is_workspace_member(db: Session,workspace_id: int,user_id: int,) -> bool:
+    return (db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace_id,
+                                             WorkspaceMember.user_id == user_id,).first() is not None) 

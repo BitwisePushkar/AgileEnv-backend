@@ -6,7 +6,7 @@ from app.auth.models import User
 from app.auth.crud import get_user_email, get_user_id, get_profile_id
 from app.workspace import crud, schemas
 from app.utils import JWTUtil
-from app.utils.email import workspace_invitation, workspace_welcome
+from app.utils.email import workspace_invitation, workspace_welcome, workspace_invitation_new_user
 from datetime import datetime, timezone
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -86,47 +86,47 @@ def get_workspace_members(request: Request,workspace_id: int,db: Session = Depen
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="You are not a member of this workspace",)
     return crud.get_member_details(db, workspace_id)
 
-@router.post("/api/workspace/invite/{workspace_id}/",response_model=schemas.InviteResponse,status_code=status.HTTP_200_OK,)
-@limiter.limit("10/minute")
-def invite_users(request: Request,workspace_id: int,data: schemas.WorkspaceInvite,background_tasks: BackgroundTasks,  
+@router.post("/api/workspace/invite/{id}/")
+def invite_users(request: Request,id: int,data: schemas.InviteRequest,background_tasks: BackgroundTasks,
                  db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
-    workspace = crud.get_workspace_id(db, workspace_id)
-    if not workspace:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
-    if not crud.is_admin(workspace, current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Only the workspace admin can invite users",)
-    unique_emails = list(dict.fromkeys(data.emails))
+    workspace = crud.get_workspace_or_404(db, id)
+    crud.require_workspace_admin(db, workspace, current_user.id)
+    unique_emails = list(set(e.lower().strip() for e in data.emails))
     if len(unique_emails) > MAX_INVITE_BATCH:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Maximum {MAX_INVITE_BATCH} emails per invite request.",)
-    queued = []
+        raise HTTPException(400, f"Maximum {MAX_INVITE_BATCH} emails per invite batch")
+    invited_existing = []
+    invited_new = []
     already_members = []
-    not_found = []
-    if current_user.email in unique_emails:
-        unique_emails.remove(current_user.email)
+    unique_emails = [e for e in unique_emails if e != current_user.email.lower()]
+    if current_user.email.lower() not in [e.lower() for e in unique_emails]:
         already_members.append(current_user.email)
-    admin_profile = get_profile_id(db, current_user.id)
-    lang = admin_profile.language if admin_profile and admin_profile.language else "en"
-    admin_username = getattr(current_user, "username", None) or current_user.email
+    admin_username = current_user.username or current_user.email
+    lang = "en"
     for email in unique_emails:
         user = get_user_email(db, email)
-        if not user or not user.is_active:
-            not_found.append(email)
-            continue
-        if crud.is_member(db, workspace, user):
+        if user and crud.is_workspace_member(db, id, user.id):
             already_members.append(email)
             continue
-        background_tasks.add_task(workspace_invitation,
-                                  email,
-                                  workspace.name,
-                                  workspace.code,
-                                  admin_username,
-                                  lang,)
-        queued.append(email)
-        logger.info(f"Invitation queued for {email[:4]}*** to workspace {workspace_id}")
-    return {"message": "Invitation process completed",
-            "invited": queued,
-            "already_members": already_members,
-            "not_found": not_found,}
+        crud.create_invite(db, id, email, current_user.id)
+        if user:
+            invited_existing.append(email)
+            background_tasks.add_task(workspace_invitation,
+                                      email=email,
+                                      name=workspace.name,
+                                      code=workspace.code,
+                                      admin=admin_username,
+                                      language=lang,)
+        else:
+            invited_new.append(email)
+            background_tasks.add_task(workspace_invitation_new_user, 
+                                      email=email,
+                                      name=workspace.name,
+                                      code=workspace.code,
+                                      admin=admin_username,)
+    return schemas.InviteResponse(message="Invitations sent",
+                                  invited_existing=invited_existing,
+                                  invited_new=invited_new,
+                                  already_members=already_members,)
 
 @router.post("/api/workspace/join/{workspace_id}/",response_model=schemas.WorkspaceResponse,)
 @limiter.limit("20/minute")
@@ -140,6 +140,7 @@ def join_workspace(request: Request,workspace_id: int,data: schemas.JoinWorkspac
     if crud.is_member(db, workspace, current_user):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="You are already a member of this workspace",)
     crud.add_member(db, workspace, current_user)
+    crud.accept_invite(db, workspace_id, current_user.email)
     logger.info(f"User {current_user.id} joined workspace {workspace_id}")
     user_profile = get_profile_id(db, current_user.id)
     user_lang = user_profile.language if user_profile and user_profile.language else "en"
