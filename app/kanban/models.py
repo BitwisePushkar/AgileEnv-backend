@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, Enum
+from sqlalchemy import (Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, Enum,
+                         UniqueConstraint, JSON,)
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.utils.dbUtil import Base
@@ -11,9 +12,9 @@ class CardPriority(enum.Enum):
     CRITICAL = "critical"
 
 class CardStatus(enum.Enum):
-    ACTIVE = "active" 
-    COMPLETED = "completed" 
-    REOPENED = "reopened"
+    ACTIVE = "active"  
+    COMPLETED = "completed"  
+    REOPENED = "reopened"   
 
 class KanbanColumn(Base):
     __tablename__ = "kanban_columns"
@@ -30,15 +31,16 @@ class KanbanColumn(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
 
     project = relationship("Project", back_populates="kanban_columns")
-    cards = relationship("KanbanCard", back_populates="column",cascade="all, delete-orphan",
-                         order_by="KanbanCard.order")
+    cards = relationship("KanbanCard", back_populates="column", cascade="all, delete-orphan", order_by="KanbanCard.order",)
+
+    __table_args__ = (UniqueConstraint("project_id", "order", name="uq_kanban_column_order"),)
 
 class KanbanCard(Base):
     __tablename__ = "kanban_cards"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    column_id = Column(Integer, ForeignKey("kanban_columns.id", ondelete="CASCADE"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"),  nullable=False)
+    column_id = Column(Integer, ForeignKey("kanban_columns.id", ondelete="SET NULL"), nullable=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     order = Column(Float, nullable=False, default=1000.0)
@@ -49,11 +51,14 @@ class KanbanCard(Base):
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-                         onupdate=lambda: datetime.now(timezone.utc))
+                        onupdate=lambda: datetime.now(timezone.utc))
     status = Column(Enum(CardStatus), nullable=False, default=CardStatus.ACTIVE)
-    completed_at = Column(DateTime(timezone=True), nullable=True) 
-    
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    reminders_sent = Column(JSON, nullable=False, default=list)
+
     column = relationship("KanbanColumn", back_populates="cards")
     project = relationship("Project", back_populates="kanban_cards")
     assignee = relationship("User", foreign_keys=[assignee_id])
     creator = relationship("User", foreign_keys=[created_by])
+
+    __table_args__ = (UniqueConstraint("column_id", "order", name="uq_kanban_card_order"),)
