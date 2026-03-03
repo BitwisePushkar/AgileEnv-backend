@@ -392,6 +392,139 @@ def _overdue_html(username: str,card_title: str,project_name: str,due_date: str,
     </table></td></tr></table>
     </body></html>"""
 
+def _card_reopened_html_en(username, card_title, project_name, column_name, reopened_by):
+    return f"""
+    <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+    <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0"
+           style="background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);overflow:hidden;">
+
+      <tr><td style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:40px;text-align:center;">
+        <h1 style="margin:0;color:#fff;font-size:28px;">Agile App</h1>
+        <p style="margin:8px 0 0;color:rgba(255,255,255,.9);font-size:15px;">🔄 Card Reopened</p>
+      </td></tr>
+
+      <tr><td style="padding:40px;">
+        <p>Hi <strong>{username}</strong>,</p>
+        <p>
+          The card <strong>"{card_title}"</strong> in project <strong>{project_name}</strong>
+          was moved back to <strong>{column_name}</strong> by <strong>{reopened_by}</strong>.
+        </p>
+
+        <p style="margin-top:20px;color:#4338ca;">
+          This card needs your attention again.
+        </p>
+      </td></tr>
+
+      <tr><td style="background:#f7fafc;padding:24px;text-align:center;font-size:12px;color:#a0aec0;">
+        This is an automated message from Agile App.
+      </td></tr>
+
+    </table></td></tr></table>
+    </body></html>
+    """
+
+def _card_reopened_html_hi(username, card_title, project_name, column_name, reopened_by):
+    return f"""
+    <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+    <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0"
+           style="background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);overflow:hidden;">
+
+      <tr><td style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:40px;text-align:center;">
+        <h1 style="margin:0;color:#fff;font-size:28px;">Agile App</h1>
+        <p style="margin:8px 0 0;color:rgba(255,255,255,.9);font-size:15px;">🔄 कार्ड पुनः खोला गया</p>
+      </td></tr>
+
+      <tr><td style="padding:40px;">
+        <p>नमस्ते <strong>{username}</strong>,</p>
+        <p>
+          कार्ड <strong>"{card_title}"</strong> (प्रोजेक्ट: <strong>{project_name}</strong>)
+          को <strong>{reopened_by}</strong> द्वारा फिर से <strong>{column_name}</strong> में भेजा गया है।
+        </p>
+
+        <p style="margin-top:20px;color:#4338ca;">
+          इस कार्ड पर फिर से ध्यान देने की आवश्यकता है।
+        </p>
+      </td></tr>
+
+      <tr><td style="background:#f7fafc;padding:24px;text-align:center;font-size:12px;color:#a0aec0;">
+        यह Agile App द्वारा भेजा गया स्वचालित संदेश है।
+      </td></tr>
+
+    </table></td></tr></table>
+    </body></html>
+    """
+
+def _card_reopened_html_fr(username, card_title, project_name, column_name, reopened_by):
+    return f"""
+    <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+    <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0"
+           style="background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);overflow:hidden;">
+
+      <tr><td style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:40px;text-align:center;">
+        <h1 style="margin:0;color:#fff;font-size:28px;">Agile App</h1>
+        <p style="margin:8px 0 0;color:rgba(255,255,255,.9);font-size:15px;">🔄 Carte réouverte</p>
+      </td></tr>
+
+      <tr><td style="padding:40px;">
+        <p>Bonjour <strong>{username}</strong>,</p>
+        <p>
+          La carte <strong>"{card_title}"</strong> du projet <strong>{project_name}</strong>
+          a été déplacée vers <strong>{column_name}</strong> par <strong>{reopened_by}</strong>.
+        </p>
+
+        <p style="margin-top:20px;color:#4338ca;">
+          Cette carte nécessite de nouveau votre attention.
+        </p>
+      </td></tr>
+
+      <tr><td style="background:#f7fafc;padding:24px;text-align:center;font-size:12px;color:#a0aec0;">
+        Ceci est un message automatique envoyé par Agile App.
+      </td></tr>
+
+    </table></td></tr></table>
+    </body></html>
+    """
+
+def _card_reopened_html_zh(username, card_title, project_name, column_name, reopened_by):
+    return f"""
+    <html><body style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+    <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0"
+           style="background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.08);overflow:hidden;">
+
+      <tr><td style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:40px;text-align:center;">
+        <h1 style="margin:0;color:#fff;font-size:28px;">Agile App</h1>
+        <p style="margin:8px 0 0;color:rgba(255,255,255,.9);font-size:15px;">🔄 卡片已重新开启</p>
+      </td></tr>
+
+      <tr><td style="padding:40px;">
+        <p>您好 <strong>{username}</strong>,</p>
+        <p>
+          项目 <strong>{project_name}</strong> 中的卡片
+          <strong>"{card_title}"</strong>
+          已被 <strong>{reopened_by}</strong> 移回 <strong>{column_name}</strong>。
+        </p>
+
+        <p style="margin-top:20px;color:#4338ca;">
+          该卡片需要您再次关注。
+        </p>
+      </td></tr>
+
+      <tr><td style="background:#f7fafc;padding:24px;text-align:center;font-size:12px;color:#a0aec0;">
+        此邮件由 Agile App 自动发送。
+      </td></tr>
+
+    </table></td></tr></table>
+    </body></html>
+    """
+
 _REMINDER_72H = {
     "en": lambda u, c, p, d: (
         f'Reminder: "{c}" is due in 72 hours',
@@ -644,4 +777,24 @@ def send_kanban_overdue_creator(email: str, username: str, card_title: str,proje
     html = _overdue_html(username, card_title, project_name, due_date,is_creator = True,greeting = greeting,
                          body_assignee = "",body_creator = body_fn_c(card_title, project_name),overdue_label = overdue_label,
                          project_label = project_label,footer_line = footer,)
+    return _send_email(email, subject, html)
+
+_CARD_REOPENED_SUBJECTS = {
+    "en": 'Card reopened: "{card}"',
+    "hi": 'कार्ड फिर से खोला गया: "{card}"',
+    "fr": 'Carte réouverte : "{card}"',
+    "zh": '卡片已重新开启："{card}"',
+}
+
+_CARD_REOPENED_TEMPLATES = {
+    "en": _card_reopened_html_en,
+    "hi": _card_reopened_html_hi,
+    "fr": _card_reopened_html_fr,
+    "zh": _card_reopened_html_zh,
+}
+def send_kanban_card_reopened(email: str,username: str,card_title: str,project_name: str,column_name: str,
+                              reopened_by: str,language: str = "en",) -> bool:
+    lang = language if language in _CARD_REOPENED_TEMPLATES else "en"
+    subject = _CARD_REOPENED_SUBJECTS[lang].format(card=card_title)
+    html = _get_template(_CARD_REOPENED_TEMPLATES, lang)(username,card_title,project_name,column_name,reopened_by,)
     return _send_email(email, subject, html)

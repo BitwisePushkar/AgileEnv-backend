@@ -21,7 +21,7 @@ def _run_kanban_reminders() -> None:
 
 def start_scheduler() -> None:
     _scheduler.add_job(func = _run_kanban_reminders,
-                       trigger = IntervalTrigger(hours=1),
+                       trigger = IntervalTrigger(minutes=5),
                        id = "kanban_deadline_reminders",
                        name = "Kanban deadline reminder emails",
                        replace_existing = True,

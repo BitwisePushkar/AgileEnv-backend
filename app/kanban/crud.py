@@ -11,6 +11,7 @@ from app.workspace.model import WorkspaceMember
 
 MIN_ORDER_GAP = 0.001
 ORDER_STEP = 1000.0
+TEMP_OFFSET = 1_000_000 
 
 def assert_kanban_project(project: Project) -> None:
     if project.board_type.value != "kanban":
@@ -107,18 +108,25 @@ def delete_column(db: Session, col: KanbanColumn) -> None:
     db.commit()
 
 def reorder_columns(db: Session, project_id: int, column_orders: list) -> List[KanbanColumn]:
-    project_columns = (db.query(KanbanColumn).filter(KanbanColumn.project_id == project_id).all())
+    project_columns = (db.query(KanbanColumn).filter(KanbanColumn.project_id == project_id)
+                       .with_for_update().all())
     project_column_ids = {c.id for c in project_columns}
+    submitted_ids = {item.column_id for item in column_orders}
+    foreign_ids = submitted_ids - project_column_ids
+    if foreign_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Column(s) {sorted(foreign_ids)} do not belong to this project",)
+    missing_ids = project_column_ids - submitted_ids
+    if missing_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=(f"Reorder list is incomplete .All project columns must be included."),)
+    submitted_orders = [item.order for item in column_orders]
+    if len(submitted_orders) != len(set(submitted_orders)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="column_orders contains duplicate order values",)
+    col_map = {c.id: c for c in project_columns}
     for item in column_orders:
-        if item.column_id not in project_column_ids:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Column {item.column_id} does not belong to this project",)
-    TEMP_OFFSET = 1_000_000
-    for col in project_columns:
-        col.order += TEMP_OFFSET
-    db.flush() 
+        col_map[item.column_id].order += TEMP_OFFSET
+    db.flush()
     for item in column_orders:
-        col = next(c for c in project_columns if c.id == item.column_id)
-        col.order = item.order
+        col_map[item.column_id].order = item.order
     db.commit()
     return get_project_columns(db, project_id)
 
@@ -193,25 +201,20 @@ def update_card(db: Session, card: KanbanCard, data, project_id: int) -> KanbanC
     db.commit()
     return get_card_or_404(db, card.id)
 
-def move_card(db: Session,card: KanbanCard,dest_column_id: int,new_order: float,) -> KanbanCard:
+def move_card(db: Session, card: KanbanCard, dest_column_id: int, new_order: float) -> KanbanCard:
     dest_col = get_column_or_404(db, dest_column_id)
-    if (card.column_id == dest_column_id and abs(card.order - new_order) < MIN_ORDER_GAP):
+    if card.column_id == dest_column_id and abs(card.order - new_order) < MIN_ORDER_GAP:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail="Card is already at this position",)
     if dest_column_id != card.column_id and dest_col.wip_limit is not None:
         current = count_active_cards(db, dest_column_id)
         if current >= dest_col.wip_limit:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Destination column is at WIP limit ({current}/{dest_col.wip_limit})",)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Destination column is at WIP limit ({current}/{dest_col.wip_limit})",)
     src_col_id = card.column_id
-    db.query(KanbanCard).filter(KanbanCard.column_id == dest_column_id).with_for_update().all()
-    card.order = -1_000_000_000
-    db.flush()
-    cards_to_shift = (db.query(KanbanCard).filter(KanbanCard.column_id == dest_column_id,KanbanCard.order >= new_order,
-                                                  KanbanCard.is_archived == False,).all())
-    for c in cards_to_shift:
-        c.order += 1_000_000
-    db.flush()
-    for c in cards_to_shift:
-        c.order -= 1_000_000 - ORDER_STEP
+    locked_cards = (db.query(KanbanCard).filter(KanbanCard.column_id == dest_column_id,KanbanCard.is_archived == False,)
+                    .with_for_update().all())
+    existing_orders = {c.order for c in locked_cards if c.id != card.id}
+    while new_order in existing_orders:
+        new_order += MIN_ORDER_GAP
     card.column_id = dest_column_id
     card.order = new_order
     if dest_col.is_done_column:
@@ -222,6 +225,7 @@ def move_card(db: Session,card: KanbanCard,dest_column_id: int,new_order: float,
         if src_col and src_col.is_done_column and not dest_col.is_done_column:
             card.status = CardStatus.REOPENED
             card.completed_at = None
+            card.reminders_sent = []
     db.commit()
     if needs_normalization(db, dest_column_id):
         normalize_card_order(db, dest_column_id)
@@ -230,21 +234,19 @@ def move_card(db: Session,card: KanbanCard,dest_column_id: int,new_order: float,
             normalize_card_order(db, src_col_id)
     return get_card_or_404(db, card.id)
 
-def reorder_cards(db: Session,column_id: int,card_orders: list) -> List[KanbanCard]:
+def reorder_cards(db: Session, column_id: int, card_orders: list) -> List[KanbanCard]:
+    active_cards = get_column_cards(db, column_id)
+    active_card_ids = {c.id for c in active_cards}
     submitted_ids = {item.card_id for item in card_orders}
-    active_cards = (db.query(KanbanCard).filter(KanbanCard.column_id == column_id,KanbanCard.is_archived == False,)
-                    .with_for_update().all())
-    active_ids = {c.id for c in active_cards}
-    foreign_ids = submitted_ids - active_ids
+    foreign_ids = submitted_ids - active_card_ids
     if foreign_ids:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Card(s) {sorted(foreign_ids)} do not belong to this column",)
-    missing_ids = active_ids - submitted_ids
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=f"Card(s) {sorted(foreign_ids)} do not belong to this column or are archived",)
+    missing_ids = active_card_ids - submitted_ids
     if missing_ids:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Reorder list is incomplete. All active cards must be included.",)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail=("All active cards in the column must be included."),)
     card_map = {c.id: c for c in active_cards}
-    TEMP_OFFSET = 1_000_000_000
-    for c in active_cards:
-        c.order += TEMP_OFFSET
+    for card in active_cards:
+        card.order += TEMP_OFFSET
     db.flush()
     for item in card_orders:
         card_map[item.card_id].order = item.order

@@ -4,7 +4,7 @@ from app.utils.email.workspace import (workspace_invitation,workspace_welcome,wo
 from app.utils.email.project import (send_project_member_added,send_project_member_removed,)
 from app.utils.email.kanban import (send_kanban_card_assigned,send_kanban_card_completed,send_kanban_deadline_72h,
                                     send_kanban_deadline_24h,send_kanban_deadline_2h,send_kanban_overdue_assignee,
-                                    send_kanban_overdue_creator,)
+                                    send_kanban_overdue_creator,send_kanban_card_reopened)
 
 __all__ = [
     "SUPPORTED_LANGUAGES",
@@ -16,6 +16,7 @@ __all__ = [
     "send_project_member_removed",
     "send_kanban_card_assigned",
     "send_kanban_card_completed",
+    "send_kanban_card_reopened",
     "send_kanban_deadline_72h",
     "send_kanban_deadline_24h",
     "send_kanban_deadline_2h",

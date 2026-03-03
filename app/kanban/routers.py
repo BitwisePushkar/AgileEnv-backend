@@ -9,7 +9,7 @@ from app.auth.crud import get_user_id, get_profile_id
 from app.project.crud import (get_project_or_404,is_workspace_admin,is_project_member,require_project_role,)
 from app.kanban import crud, schemas
 from app.kanban.models import KanbanCard, KanbanColumn
-from app.utils.email import send_kanban_card_assigned, send_kanban_card_completed
+from app.utils.email import send_kanban_card_assigned, send_kanban_card_completed, send_kanban_card_reopened
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -268,6 +268,7 @@ def move_card(request: Request,card_id: int,data: schemas.CardMove,background_ta
     dest_col = crud.get_column_or_404(db, data.column_id)
     if dest_col.project_id != card.project_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Destination column does not belong to this project",)
+    old_status = card.status.value
     card = crud.move_card(db, card, data.column_id, data.order)
     if (card.status.value == "completed" and card.created_by is not None and card.created_by != current_user.id):
         creator = get_user_id(db, card.created_by)
@@ -280,6 +281,21 @@ def move_card(request: Request,card_id: int,data: schemas.CardMove,background_ta
                                       card_title = card.title,
                                       project_name = project.name,
                                       completed_by = current_user.username or current_user.email,
+                                      language = lang,)
+    if (card.status.value == "reopened" and old_status == "completed" and card.assignee_id is not None
+        and card.assignee_id != current_user.id):
+        assignee = get_user_id(db, card.assignee_id)
+        if assignee:
+            assignee_profile = get_profile_id(db, card.assignee_id)
+            lang = assignee_profile.language if assignee_profile and assignee_profile.language else "en"
+            dest_col_obj = crud.get_column_or_404(db, data.column_id)
+            background_tasks.add_task(send_kanban_card_reopened,
+                                      email = assignee.email,
+                                      username = assignee.username or assignee.email,
+                                      card_title = card.title,
+                                      project_name = project.name,
+                                      column_name = dest_col_obj.name,
+                                      reopened_by = current_user.username or current_user.email,
                                       language = lang,)
     return format_card(card)
 
