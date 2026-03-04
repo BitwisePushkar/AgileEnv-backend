@@ -1,4 +1,4 @@
-from sqlalchemy import (Column, Integer, String, Text, Float,Boolean, DateTime, ForeignKey, Enum)
+from sqlalchemy import (Column, Integer, String, Text, Float, Boolean, DateTime, ForeignKey, Enum, JSON,)
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.utils.dbUtil import Base
@@ -40,18 +40,18 @@ class Epic(Base):
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    color = Column(String(7), nullable=True)                         
+    color = Column(String(7), nullable=True)  
     status = Column(Enum(EpicStatus), nullable=False, default=EpicStatus.PLANNED)
     start_date = Column(DateTime(timezone=True), nullable=True)
-    end_date = Column(DateTime(timezone=True), nullable=True)             
+    end_date = Column(DateTime(timezone=True), nullable=True)
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True),default=lambda: datetime.now(timezone.utc),
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
-    
+
     project = relationship("Project", back_populates="scrum_epics")
     creator = relationship("User", foreign_keys=[created_by])
-    issues = relationship("ScrumIssue",back_populates="epic",foreign_keys="[ScrumIssue.epic_id]",)
+    issues = relationship("ScrumIssue", back_populates="epic", foreign_keys="[ScrumIssue.epic_id]",)
 
 class Sprint(Base):
     __tablename__ = "scrum_sprints"
@@ -61,12 +61,14 @@ class Sprint(Base):
     name = Column(String(100), nullable=False)
     goal = Column(Text, nullable=True)
     status = Column(Enum(SprintStatus), nullable=False, default=SprintStatus.PLANNING)
-    start_date = Column(DateTime(timezone=True), nullable=True)    
-    end_date = Column(DateTime(timezone=True), nullable=True)   
-    completed_at = Column(DateTime(timezone=True), nullable=True)   
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True),default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                         onupdate=lambda: datetime.now(timezone.utc))
+    end_warning_sent = Column(Boolean, nullable=False, default=False)
+    carried_over_count = Column(Integer, nullable=True)
 
     project = relationship("Project", back_populates="scrum_sprints")
     issues = relationship("ScrumIssue",back_populates="sprint",foreign_keys="[ScrumIssue.sprint_id]",)
@@ -75,10 +77,10 @@ class ScrumIssue(Base):
     __tablename__ = "scrum_issues"
 
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    epic_id = Column(Integer, ForeignKey("scrum_epics.id", ondelete="SET NULL"), nullable=True)
+    project_id = Column(Integer, ForeignKey("projects.id",      ondelete="CASCADE"),  nullable=False)
+    epic_id = Column(Integer, ForeignKey("scrum_epics.id",   ondelete="SET NULL"), nullable=True)
     sprint_id = Column(Integer, ForeignKey("scrum_sprints.id", ondelete="SET NULL"), nullable=True)
-    parent_id = Column(Integer, ForeignKey("scrum_issues.id", ondelete="CASCADE"), nullable=True)
+    parent_id = Column(Integer, ForeignKey("scrum_issues.id",  ondelete="CASCADE"),  nullable=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     type = Column(Enum(IssueType), nullable=False)
@@ -91,30 +93,30 @@ class ScrumIssue(Base):
     due_date = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True),default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+                          onupdate=lambda: datetime.now(timezone.utc))
+    reminders_sent = Column(JSON, nullable=False, default=list)
 
     project = relationship("Project", back_populates="scrum_issues")
     epic = relationship("Epic", back_populates="issues", foreign_keys=[epic_id])
     sprint = relationship("Sprint", back_populates="issues", foreign_keys=[sprint_id])
     assignee = relationship("User", foreign_keys=[assignee_id])
     reporter = relationship("User", foreign_keys=[reporter_id])
-
-    subtasks = relationship("ScrumIssue",back_populates="parent",foreign_keys=[parent_id],cascade="all, delete-orphan",)
-    parent = relationship("ScrumIssue",back_populates="subtasks",foreign_keys=[parent_id],remote_side="ScrumIssue.id",)
-    comments = relationship("IssueComment",back_populates="issue",cascade="all, delete-orphan",order_by="IssueComment.created_at",)
+    subtasks = relationship("ScrumIssue", back_populates="parent", foreign_keys=[parent_id], cascade="all, delete-orphan",)
+    parent = relationship("ScrumIssue", back_populates="subtasks", foreign_keys=[parent_id], remote_side="ScrumIssue.id",)
+    comments = relationship("IssueComment", back_populates="issue", cascade="all, delete-orphan", order_by="IssueComment.created_at",)
 
 class IssueComment(Base):
     __tablename__ = "scrum_issue_comments"
 
     id = Column(Integer, primary_key=True, index=True)
-    issue_id = Column(Integer, ForeignKey("scrum_issues.id", ondelete="CASCADE"), nullable=False)
-    author_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    issue_id = Column(Integer, ForeignKey("scrum_issues.id", ondelete="CASCADE"),  nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id",        ondelete="SET NULL"), nullable=True)
     content = Column(Text, nullable=False)
     is_edited = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True),default=lambda: datetime.now(timezone.utc),
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
 
-    issue = relationship("ScrumIssue", back_populates="comments")
+    issue = relationship("ScrumIssue",  back_populates="comments")
     author = relationship("User", foreign_keys=[author_id])
