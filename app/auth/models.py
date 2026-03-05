@@ -31,6 +31,8 @@ class User(Base):
     scrum_comments = relationship("IssueComment", foreign_keys="IssueComment.author_id", back_populates="author")
     created_epics = relationship("Epic", foreign_keys="Epic.created_by", back_populates="creator")
     invited_users = relationship("WorkspaceInvite",back_populates="inviter")
+    forwarded_messages = relationship("Message", foreign_keys="Message.forwarded_from_user_id", back_populates="forwarded_from_user")
+    pins_created = relationship("PinnedMessage", foreign_keys="PinnedMessage.pinned_by", back_populates="pinner")
 
     @property
     def workspaces(self):
