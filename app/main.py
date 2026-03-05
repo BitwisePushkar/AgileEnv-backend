@@ -13,6 +13,7 @@ from app.project.routers import router as project_router
 from app.kanban.routers import router as kanban_router
 from app.scrum.routers import router as scrum_router
 from app.utils.dbUtil import init_db, get_db
+from app.utils.scheduler import start_scheduler, stop_scheduler
 import asyncio
 import logging
 
@@ -22,7 +23,7 @@ limiter = Limiter(key_func=get_remote_address)
 async def _blacklist_cleanup_task():
     while True:
         try:
-            await asyncio.sleep(86400)  
+            await asyncio.sleep(86400)
             db_gen = get_db()
             db = next(db_gen)
             try:
@@ -39,6 +40,7 @@ async def _blacklist_cleanup_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    start_scheduler()                                 
     cleanup_task = asyncio.create_task(_blacklist_cleanup_task())
     logger.info("Agile backend started")
     yield
@@ -47,16 +49,17 @@ async def lifespan(app: FastAPI):
         await cleanup_task
     except asyncio.CancelledError:
         pass
+    stop_scheduler()                                    
     logger.info("Agile backend stopped")
 
 app = FastAPI(
-    lifespan=lifespan,
-    docs_url="/api/docs",
-    redoc_url="/api/redocs",
-    title="Agile Backend API",
-    description="REST API for Agile — a modern Jira-inspired project management app.",
-    version="1.0",
-    openapi_url="/openapi.json",
+    lifespan = lifespan,
+    docs_url = "/api/docs",
+    redoc_url = "/api/redocs",
+    title = "Agile Backend API",
+    description = "REST API for Agile — a modern Jira-inspired project management app.",
+    version = "1.0",
+    openapi_url = "/openapi.json",
 )
 
 app.state.limiter = limiter
@@ -79,7 +82,7 @@ app.add_middleware(
 def root(request: Request):
     return {"message": "Welcome to Agile Backend"}
 
-@app.api_route("/health", methods=["GET", "HEAD"], operation_id="health_check")
+@app.api_route("/health", tags=["System"])
 @limiter.limit("200/minute")
 def app_health_check(request: Request):
     return {"status": "OK", "service": "Agile Backend", "version": "1.0"}

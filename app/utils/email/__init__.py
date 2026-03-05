@@ -2,6 +2,13 @@ from app.utils.email.core import SUPPORTED_LANGUAGES
 from app.utils.email.otp import send_otp_email
 from app.utils.email.workspace import (workspace_invitation,workspace_welcome,workspace_invitation_new_user)
 from app.utils.email.project import (send_project_member_added,send_project_member_removed,)
+from app.utils.email.kanban import (send_kanban_card_assigned,send_kanban_card_completed,send_kanban_deadline_72h,
+                                    send_kanban_deadline_24h,send_kanban_deadline_2h,send_kanban_overdue_assignee,
+                                    send_kanban_overdue_creator,send_kanban_card_reopened)
+from app.utils.email.scrum import (send_scrum_issue_assigned,send_scrum_sprint_started,send_scrum_sprint_completed,
+                                   send_scrum_issue_deadline_72h,send_scrum_issue_deadline_24h,send_scrum_issue_deadline_2h,
+                                   send_scrum_issue_overdue_assignee,send_scrum_issue_overdue_reporter,send_scrum_sprint_ending_soon,
+                                   send_scrum_issue_reopened)
 
 __all__ = [
     "SUPPORTED_LANGUAGES",
@@ -11,4 +18,22 @@ __all__ = [
     "workspace_invitation_new_user",
     "send_project_member_added",
     "send_project_member_removed",
+    "send_kanban_card_assigned",
+    "send_kanban_card_completed",
+    "send_kanban_card_reopened",
+    "send_kanban_deadline_72h",
+    "send_kanban_deadline_24h",
+    "send_kanban_deadline_2h",
+    "send_kanban_overdue_assignee",
+    "send_kanban_overdue_creator",
+    "send_scrum_issue_assigned",
+    "send_scrum_sprint_started",
+    "send_scrum_sprint_completed",
+    "send_scrum_issue_reopened",
+    "send_scrum_issue_deadline_72h",
+    "send_scrum_issue_deadline_24h",
+    "send_scrum_issue_deadline_2h",
+    "send_scrum_issue_overdue_assignee",
+    "send_scrum_issue_overdue_reporter",
+    "send_scrum_sprint_ending_soon",
 ]

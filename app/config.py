@@ -29,11 +29,13 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     AWS_REGION: str
     S3_BUCKET_NAME: str
-    FROM_EMAIL: str
-    SMTP_HOST: str   
-    SMTP_PORT: int    
-    SMTP_USER: str     
-    SMTP_PASSWORD: str
+    EMAIL_BACKEND: str 
+    EMAIL_HOST: str    
+    EMAIL_PORT: int        
+    EMAIL_USE_TLS: bool       
+    EMAIL_USE_SSL: bool        
+    EMAIL_HOST_USER: str           
+    EMAIL_HOST_PASSWORD: str           
 
     class Config:
         env_file = "app/.env"
