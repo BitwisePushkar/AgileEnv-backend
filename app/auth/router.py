@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Request, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, Depends, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.auth import schemas, crud
@@ -6,9 +6,8 @@ from app.auth.models import User
 from app.utils.dbUtil import get_db
 from app.utils.passUtil import hash_pwd, verify_pass
 from app.utils import JWTUtil
-from app.utils.email import send_otp_email
+from app.utils.email.email_tasks import send_otp_task
 from app.utils.S3Util import s3_upload, s3_delete, validate_image
-from app.utils.i18nUtil import resolve_language 
 from app.utils.redisUtils import redis_client
 from app.auth.schemas import SUPPORTED_LANGUAGE_TAGS
 from typing import Optional
@@ -27,7 +26,7 @@ _REFRESH_TOKEN_TTL = settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400
 
 @router.post("/api/register/", status_code=status.HTTP_201_CREATED, response_model=schemas.OTPResponse)
 @limiter.limit("5/minute")
-def register(request: Request, user: schemas.UserCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def register(request: Request, user: schemas.UserCreate, db: Session = Depends(get_db)):
     lang = "en"
     exist_user = crud.get_user_email(db, user.email)
     if exist_user:
@@ -77,7 +76,7 @@ def register(request: Request, user: schemas.UserCreate, background_tasks: Backg
         if verify_locked:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=f"OTP verification locked. Try again in {verify_min} minutes.",)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unable to send OTP.")
-    background_tasks.add_task(send_otp_email, user.email, otp, "registration", user.username, language=lang)
+    send_otp_task.delay(user.email, otp, "registration", user.username, language=lang)
     logger.info("OTP sent for registration")
     return {"message": "Verification email sent successfully.", "email": user.email}
 
@@ -93,7 +92,7 @@ def verify_registration(request: Request, otp: schemas.OTPVerify, db: Session = 
 
 @router.post("/api/resend-otp/", response_model=schemas.OTPResponse)
 @limiter.limit("5/minute")
-def resend_otp(request: Request, req: schemas.OTPRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def resend_otp(request: Request, req: schemas.OTPRequest, db: Session = Depends(get_db)):
     lang = "en"
     user = crud.get_user_email(db, req.email)
     if req.purpose == "registration":
@@ -119,7 +118,7 @@ def resend_otp(request: Request, req: schemas.OTPRequest, background_tasks: Back
         if verify_locked:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail=f"OTP verification locked. Try again in {verify_min} minutes.",)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unable to send OTP.")
-    background_tasks.add_task(send_otp_email, req.email, otp, req.purpose, user.username if req.purpose == "registration" else "User", language=lang)
+    send_otp_task.delay(req.email,otp,req.purpose,user.username if req.purpose == "registration" else "User",language=lang,)
     logger.info(f"OTP resent for purpose={req.purpose}")
     return {"message": "OTP resent successfully.", "email": req.email}
 
@@ -218,7 +217,7 @@ def delete(request: Request,body: Optional[schemas.LogoutRequest] = None,auth: J
 
 @router.post("/api/forget-password/", response_model=schemas.OTPResponse)
 @limiter.limit("5/minute")
-def forget_password(request: Request, req: schemas.EmailRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def forget_password(request: Request, req: schemas.EmailRequest, db: Session = Depends(get_db)):
     user = crud.user_exist(db, req.email)
     if not user or user.password is None:
         return schemas.OTPResponse(message="If the email exists, an OTP has been sent.", email=req.email)
@@ -230,7 +229,7 @@ def forget_password(request: Request, req: schemas.EmailRequest, background_task
         if send_locked:
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,detail=f"Too many OTP requests. Try again in {send_min} minutes.",)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unable to send OTP.")
-    background_tasks.add_task(send_otp_email, req.email, otp, "password_reset", language=lang)
+    send_otp_task.delay(req.email, otp, "password_reset", language=lang)
     logger.info("Password reset OTP sent")
     return {"message": "If the email exists, an OTP has been sent.", "email": req.email}
 

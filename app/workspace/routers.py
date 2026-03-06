@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from app.utils.dbUtil import get_db
@@ -6,7 +6,7 @@ from app.auth.models import User
 from app.auth.crud import get_user_email, get_user_id, get_profile_id
 from app.workspace import crud, schemas
 from app.utils import JWTUtil
-from app.utils.email import workspace_invitation, workspace_welcome, workspace_invitation_new_user
+from app.utils.email.email_tasks import send_workspace_invite_task, send_workspace_welcome_task, send_workspace_invite_new_user_task
 from datetime import datetime, timezone
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -157,8 +157,8 @@ def update_member_role(request: Request,workspace_id: int,user_id: int,data: sch
     return crud.update_member_role(db, workspace, target_user, data.role)
 
 @router.post("/api/workspace/invite/{id}/", response_model=schemas.InviteResponse)
-def invite_users(request: Request,id: int,data: schemas.InviteRequest,background_tasks: BackgroundTasks,
-                 db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def invite_users(request: Request,id: int,data: schemas.InviteRequest,db: Session = Depends(get_db),
+                 current_user: User = Depends(JWTUtil.get_user),):
     workspace = crud.get_workspace_or_404(db, id)
     crud.require_workspace_admin(db, workspace, current_user.id)
     unique_emails = list(set(e.lower().strip() for e in data.emails))
@@ -179,19 +179,15 @@ def invite_users(request: Request,id: int,data: schemas.InviteRequest,background
         crud.create_invite(db, id, email, current_user.id)
         if user:
             invited_existing.append(email)
-            background_tasks.add_task(workspace_invitation,
-                                      email=email,
-                                      name=workspace.name,
-                                      code=workspace.code,
-                                      admin=admin_username,
-                                      language="en",)
+            send_workspace_invite_task.delay(email, workspace.name, workspace.code, admin_username,language="en")
         else:
             invited_new.append(email)
-            background_tasks.add_task(workspace_invitation_new_user, 
-                                      email=email,
-                                      name=workspace.name,
-                                      code=workspace.code,
-                                      admin=admin_username,)
+            send_workspace_invite_new_user_task.delay(
+                email=email,
+                name=workspace.name,
+                code=workspace.code,
+                admin=admin_username,
+            )
     return schemas.InviteResponse(message="Invitations sent",
                                   invited_existing=invited_existing,
                                   invited_new=invited_new,
@@ -199,8 +195,8 @@ def invite_users(request: Request,id: int,data: schemas.InviteRequest,background
 
 @router.post("/api/workspace/join/{workspace_id}/",response_model=schemas.WorkspaceMemberResponse,)
 @limiter.limit("20/minute")
-def join_workspace(request: Request,workspace_id: int,data: schemas.JoinWorkspace,background_tasks: BackgroundTasks,
-                   db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def join_workspace(request: Request,workspace_id: int,data: schemas.JoinWorkspace,db: Session = Depends(get_db),
+                   current_user: User = Depends(JWTUtil.get_user),):
     workspace = crud.get_workspace_id(db, workspace_id)
     if not workspace or workspace.code != data.code:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Workspace not found or invalid security code",)
@@ -218,8 +214,7 @@ def join_workspace(request: Request,workspace_id: int,data: schemas.JoinWorkspac
     admin_user = get_user_id(db, workspace.admin_id)
     admin_username = (getattr(admin_user, "username", None) or admin_user.email
                       if admin_user else "Workspace Admin")
-    background_tasks.add_task(
-        workspace_welcome,
+    send_workspace_welcome_task.delay(
         email=current_user.email,
         username=getattr(current_user, "username", None) or current_user.email,
         workspace_name=workspace.name,

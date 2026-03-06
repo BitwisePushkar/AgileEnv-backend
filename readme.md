@@ -1,13 +1,13 @@
 # Agile Backend
 
 A minimalist, Jira-inspired project management backend powered by **FastAPI**.
-Designed around scalable Agile workflows — workspaces → projects → boards → issues → sprints.
+Designed around scalable Agile workflows — **wworkspaces → projects → boards (Kanban / Scrum) → issues → sprints**.
 
 ---
 
 ## Tech Stack
 
-`FastAPI : Python : PostgreSQL : SQLAlchemy : Redis : JWT : OAuth2 : AWS S3 : Docker`
+`FastAPI : Python : PostgreSQL : SQLAlchemy : Redis : Celery : Celery Beat : JWT : OAuth2 : AWS S3 : Docker`
 
 ---
 
@@ -16,6 +16,7 @@ Designed around scalable Agile workflows — workspaces → projects → boards 
 ### Auth
 
 Register · Login · Logout · Refresh Token · Password Reset · Email Verification
+**Google OAuth · GitHub OAuth (Web & App)**
 
 ### Users
 
@@ -48,7 +49,7 @@ Threaded Discussions on Issues
 
 ### Attachments
 
-File Uploads via S3
+File Uploads via **AWS S3**
 
 ### Notifications
 
@@ -72,21 +73,11 @@ Workspace & Project Stats · Personal Work Summary
 
 ---
 
-## Structure
+## Background Tasks
 
-```
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-├── readme.md
-└── app/
-    ├── main.py
-    ├── config.py
-    ├── auth/
-    ├── chat/
-    ├── workspace/
-    └── utils/
-```
+Powered by **Celery + Redis**
+
+Email Sending · Notifications · Scheduled Jobs · Reminder Emails
 
 ---
 
@@ -95,13 +86,16 @@ Workspace & Project Stats · Personal Work Summary
 ```bash
 git clone <repo>
 cd agile-backend
+
 python -m venv venv
 source venv/bin/activate   # windows: venv\Scripts\activate
+
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+
+uvicorn app.main:app --reload --port 80
 ```
 
-Docs → `http://127.0.0.1:8000/api/docs`
+Docs → `http://localhost/api/docs`
 
 ---
 
@@ -110,4 +104,3 @@ Docs → `http://127.0.0.1:8000/api/docs`
 ```bash
 docker-compose up --build
 ```
----

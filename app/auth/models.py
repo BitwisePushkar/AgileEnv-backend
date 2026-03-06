@@ -16,10 +16,10 @@ class User(Base):
 
     otps = relationship("OTP", backref="user", cascade="all, delete-orphan")
     oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete-orphan")
-    owned_workspaces = relationship("Workspace", back_populates="admin", foreign_keys="[Workspace.admin_id]")
+    owned_workspaces = relationship("Workspace", back_populates="admin", foreign_keys="Workspace.admin_id")
     workspace_members = relationship("WorkspaceMember", back_populates="user", cascade="all, delete-orphan")
     profile = relationship("Profile", back_populates="user", uselist=False, cascade="all, delete-orphan")
-    created_chatrooms = relationship("Chatroom", foreign_keys="Chatroom.created_by", back_populates="creator")
+    created_chatrooms = relationship("Chatroom", back_populates="creator")
     sent_messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
     chatroom_memberships = relationship("ChatroomMember", back_populates="user")
     project_memberships = relationship("ProjectMember", back_populates="user", cascade="all, delete-orphan")

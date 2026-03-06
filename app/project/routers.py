@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, Query, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.utils.dbUtil import get_db
@@ -7,7 +7,7 @@ from app.auth.models import User
 from app.auth.crud import get_user_id, get_profile_id
 from app.project import crud, schemas
 from app.project.model import Project
-from app.utils.email import send_project_member_added, send_project_member_removed
+from app.utils.email.email_tasks import send_project_member_added_task, send_project_member_removed_task
 from app.kanban.crud import create_default_columns as create_kanban_defaults
 from app.workspace.crud import get_workspace_or_404,is_workspace_member
 from slowapi import Limiter
@@ -136,8 +136,8 @@ def get_project_members(request: Request,id: int,db: Session = Depends(get_db),c
 
 @router.post("/api/projects/{id}/members/{user_id}/",response_model=schemas.ProjectMemberDetail,status_code=status.HTTP_201_CREATED,)
 @limiter.limit("20/minute")
-def add_project_member(request: Request,id: int,user_id: int,data: schemas.AddProjectMember,background_tasks: BackgroundTasks,
-                       db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def add_project_member(request: Request,id: int,user_id: int,data: schemas.AddProjectMember,db: Session = Depends(get_db),
+                       current_user: User = Depends(JWTUtil.get_user),):
     project = crud.get_project_or_404(db, id)
     crud.require_project_role(db, project, current_user.id, minimum_role="manager")
     target_user = get_user_id(db, user_id)
@@ -155,20 +155,21 @@ def add_project_member(request: Request,id: int,user_id: int,data: schemas.AddPr
     members = crud.get_project_members(db, id)
     for m in members:
         if m.user_id == user_id:
-            background_tasks.add_task(send_project_member_added,
-                                      email=target_user.email,
-                                      username=target_user.username or target_user.email,
-                                      project_name=project.name,
-                                      workspace_id=project.workspace_id,
-                                      role=data.role,
-                                      language=target_lang,)
+            send_project_member_added_task.delay(
+                email=target_user.email,
+                username=target_user.username or target_user.email,
+                project_name=project.name,
+                workspace_id=project.workspace_id,
+                role=data.role,
+                language=target_lang,
+            )
             logger.info(f"User {user_id} added to project {id} as {data.role} by user={current_user.id}")
             return format_member_detail(m)
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,detail="Member was added but could not be retrieved. Please retry.",)
 
 @router.delete("/api/projects/{id}/members/{user_id}/",status_code=status.HTTP_200_OK,)
 @limiter.limit("20/minute")
-def remove_project_member(request: Request,id: int,user_id: int,background_tasks: BackgroundTasks,db: Session = Depends(get_db),
+def remove_project_member(request: Request,id: int,user_id: int,db: Session = Depends(get_db),
                           current_user: User = Depends(JWTUtil.get_user),):
     project = crud.get_project_or_404(db, id)
     is_self = current_user.id == user_id
@@ -187,8 +188,7 @@ def remove_project_member(request: Request,id: int,user_id: int,background_tasks
     if target_role == "manager" and crud.count_managers(db, id) <= 1:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Cannot remove the last manager. Assign another manager first.",)
     crud.remove_project_member(db, id, user_id)
-    background_tasks.add_task(send_project_member_removed,
-                              email=target_user.email,
+    send_project_member_removed_task.delay(email=target_user.email,
                               username=target_user.username or target_user.email,
                               project_name=project.name,
                               language=target_lang,)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Query, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -9,7 +9,8 @@ from app.auth.crud import get_user_id, get_profile_id
 from app.project import crud as project_crud
 from app.scrum import crud, schemas
 from app.scrum.model import ScrumIssue, IssueComment, Sprint, Epic, IssueType, IssueStatus
-from app.utils.email import send_scrum_issue_assigned,send_scrum_sprint_started,send_scrum_sprint_completed,send_scrum_issue_reopened
+from app.utils.email.email_tasks import (send_scrum_assigned_task, send_scrum_sprint_started_task,
+                                         send_scrum_sprint_completed_task,send_scrum_reopened_task)
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from collections import defaultdict
@@ -233,8 +234,8 @@ def delete_sprint(request: Request,sprint_id: int,db: Session = Depends(get_db),
 
 @router.patch("/api/scrum/sprints/{sprint_id}/start/",response_model = schemas.SprintResponse,)
 @limiter.limit("5/minute")
-def start_sprint(request: Request,sprint_id: int,data: schemas.SprintStart,background_tasks: BackgroundTasks,
-                 db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def start_sprint(request: Request,sprint_id: int,data: schemas.SprintStart,db: Session = Depends(get_db),
+                 current_user: User = Depends(JWTUtil.get_user),):
     sprint = crud.get_sprint_or_404(db, sprint_id)
     project = project_crud.get_project_or_404(db, sprint.project_id)
     crud.assert_scrum_project(project)
@@ -252,8 +253,7 @@ def start_sprint(request: Request,sprint_id: int,data: schemas.SprintStart,backg
         if not assignee:
             continue
         lang = _get_lang(db, assignee_id)
-        background_tasks.add_task(send_scrum_sprint_started,
-                                  email = assignee.email,
+        send_scrum_sprint_started_task.delay(email = assignee.email,
                                   username = assignee.username or assignee.email,
                                   sprint_name = sprint.name,
                                   project_name = project.name,
@@ -263,7 +263,7 @@ def start_sprint(request: Request,sprint_id: int,data: schemas.SprintStart,backg
 
 @router.patch("/api/scrum/sprints/{sprint_id}/complete/",response_model = schemas.SprintResponse,)
 @limiter.limit("5/minute")
-def complete_sprint(request: Request,sprint_id: int,background_tasks: BackgroundTasks,db: Session = Depends(get_db),
+def complete_sprint(request: Request,sprint_id: int,db: Session = Depends(get_db),
                     current_user: User = Depends(JWTUtil.get_user),):
     sprint = crud.get_sprint_or_404(db, sprint_id)
     project = project_crud.get_project_or_404(db, sprint.project_id)
@@ -282,8 +282,7 @@ def complete_sprint(request: Request,sprint_id: int,background_tasks: Background
         admin_user = get_user_id(db, admin_member.user_id)
         if admin_user:
             lang = _get_lang(db, admin_user.id)
-            background_tasks.add_task(send_scrum_sprint_completed,
-                                      email = admin_user.email,
+            send_scrum_sprint_completed_task.delay(email = admin_user.email,
                                       username = admin_user.username or admin_user.email,
                                       sprint_name = sprint.name,
                                       project_name = project.name,
@@ -330,8 +329,8 @@ def remove_issue_from_sprint(request: Request,sprint_id: int,issue_id: int,db: S
 @router.post("/api/projects/{project_id}/scrum/issues/",response_model = schemas.IssueDetailResponse,
              status_code = status.HTTP_201_CREATED,)
 @limiter.limit("60/minute")
-def create_issue(request: Request,project_id: int,data: schemas.IssueCreate,background_tasks: BackgroundTasks,
-                 db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def create_issue(request: Request,project_id: int,data: schemas.IssueCreate,db: Session = Depends(get_db),
+                 current_user: User = Depends(JWTUtil.get_user),):
     project = project_crud.get_project_or_404(db, project_id)
     crud.assert_scrum_project(project)
     project_crud.require_project_role(db, project, current_user.id, minimum_role="editor")
@@ -340,8 +339,7 @@ def create_issue(request: Request,project_id: int,data: schemas.IssueCreate,back
         assignee = get_user_id(db, issue.assignee_id)
         if assignee:
             lang = _get_lang(db, issue.assignee_id)
-            background_tasks.add_task(send_scrum_issue_assigned,
-                                      email = assignee.email,
+            send_scrum_assigned_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       issue_title = issue.title,
                                       project_name = project.name,
@@ -400,8 +398,8 @@ def get_issue(request: Request,issue_id: int,db: Session = Depends(get_db),curre
 
 @router.put("/api/scrum/issues/{issue_id}/",response_model = schemas.IssueDetailResponse,)
 @limiter.limit("60/minute")
-def update_issue(request: Request,issue_id: int,data: schemas.IssueUpdate,background_tasks: BackgroundTasks,
-                 db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def update_issue(request: Request,issue_id: int,data: schemas.IssueUpdate,db: Session = Depends(get_db),
+                 current_user: User = Depends(JWTUtil.get_user),):
     issue = crud.get_issue_or_404(db, issue_id)
     project = project_crud.get_project_or_404(db, issue.project_id)
     crud.assert_scrum_project(project)
@@ -413,8 +411,7 @@ def update_issue(request: Request,issue_id: int,data: schemas.IssueUpdate,backgr
         assignee = get_user_id(db, new_assignee_id)
         if assignee:
             lang = _get_lang(db, new_assignee_id)
-            background_tasks.add_task(send_scrum_issue_assigned,
-                                      email = assignee.email,
+            send_scrum_assigned_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       issue_title = issue.title,
                                       project_name = project.name,
@@ -434,8 +431,8 @@ def delete_issue(request: Request,issue_id: int,db: Session = Depends(get_db),cu
 
 @router.patch("/api/scrum/issues/{issue_id}/status/", response_model=schemas.IssueResponse)
 @limiter.limit("120/minute")
-def update_issue_status(request: Request,issue_id: int,data: schemas.IssueStatusUpdate,background_tasks: BackgroundTasks,
-                        db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def update_issue_status(request: Request,issue_id: int,data: schemas.IssueStatusUpdate,db: Session = Depends(get_db),
+                        current_user: User = Depends(JWTUtil.get_user),):
     issue = crud.get_issue_or_404(db, issue_id)
     project = project_crud.get_project_or_404(db, issue.project_id)
     crud.assert_scrum_project(project)
@@ -445,8 +442,7 @@ def update_issue_status(request: Request,issue_id: int,data: schemas.IssueStatus
     if (old_status == "done" and issue.status.value != "done" and issue.assignee_id is not None and issue.assignee_id != current_user.id):
         assignee = get_user_id(db, issue.assignee_id)
         if assignee:
-            background_tasks.add_task(send_scrum_issue_reopened,
-                                      email = assignee.email,
+            send_scrum_reopened_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       issue_title = issue.title,
                                       project_name = project.name,
@@ -457,8 +453,8 @@ def update_issue_status(request: Request,issue_id: int,data: schemas.IssueStatus
 
 @router.patch("/api/scrum/issues/{issue_id}/move/", response_model=schemas.IssueResponse)
 @limiter.limit("120/minute")
-def move_issue_on_board(request: Request,issue_id: int,data: schemas.IssueStatusUpdate,background_tasks: BackgroundTasks,
-                        db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def move_issue_on_board(request: Request,issue_id: int,data: schemas.IssueStatusUpdate,db: Session = Depends(get_db),
+                        current_user: User = Depends(JWTUtil.get_user),):
     issue = crud.get_issue_or_404(db, issue_id)
     project = project_crud.get_project_or_404(db, issue.project_id)
     crud.assert_scrum_project(project)
@@ -470,8 +466,7 @@ def move_issue_on_board(request: Request,issue_id: int,data: schemas.IssueStatus
     if (old_status == "done" and issue.status.value != "done" and issue.assignee_id is not None and issue.assignee_id != current_user.id):
         assignee = get_user_id(db, issue.assignee_id)
         if assignee:
-            background_tasks.add_task(send_scrum_issue_reopened,
-                                      email = assignee.email,
+            send_scrum_reopened_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       issue_title = issue.title,
                                       project_name = project.name,
@@ -482,8 +477,8 @@ def move_issue_on_board(request: Request,issue_id: int,data: schemas.IssueStatus
 
 @router.patch("/api/scrum/issues/{issue_id}/assign/",response_model = schemas.IssueResponse,)
 @limiter.limit("60/minute")
-def assign_issue(request: Request,issue_id: int,data: schemas.IssueAssign,background_tasks: BackgroundTasks,
-                 db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def assign_issue(request: Request,issue_id: int,data: schemas.IssueAssign,db: Session = Depends(get_db),
+                 current_user: User = Depends(JWTUtil.get_user),):
     issue = crud.get_issue_or_404(db, issue_id)
     project = project_crud.get_project_or_404(db, issue.project_id)
     crud.assert_scrum_project(project)
@@ -498,8 +493,7 @@ def assign_issue(request: Request,issue_id: int,data: schemas.IssueAssign,backgr
         assignee = get_user_id(db, issue.assignee_id)
         if assignee:
             lang = _get_lang(db, issue.assignee_id)
-            background_tasks.add_task(send_scrum_issue_assigned,
-                                      email = assignee.email,
+            send_scrum_assigned_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       issue_title = issue.title,
                                       project_name = project.name,
