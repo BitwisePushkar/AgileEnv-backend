@@ -1,3 +1,4 @@
+import app.utils.celeryUtil
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +14,6 @@ from app.project.routers import router as project_router
 from app.kanban.routers import router as kanban_router
 from app.scrum.routers import router as scrum_router
 from app.utils.dbUtil import init_db, get_db
-from app.utils.scheduler import start_scheduler, stop_scheduler
 import asyncio
 import logging
 
@@ -38,9 +38,7 @@ async def _blacklist_cleanup_task():
             logger.error(f"Blacklist cleanup task error: {e}")
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    start_scheduler()                                 
+async def lifespan(app: FastAPI):                        
     cleanup_task = asyncio.create_task(_blacklist_cleanup_task())
     logger.info("Agile backend started")
     yield
@@ -48,8 +46,7 @@ async def lifespan(app: FastAPI):
     try:
         await cleanup_task
     except asyncio.CancelledError:
-        pass
-    stop_scheduler()                                    
+        pass                                   
     logger.info("Agile backend stopped")
 
 app = FastAPI(

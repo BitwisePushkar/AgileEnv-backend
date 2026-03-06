@@ -33,7 +33,7 @@ class Chatroom(Base):
     members = relationship("User", secondary="chatroom_members", viewonly=True)
     messages = relationship("Message", back_populates="chatroom", cascade="all, delete-orphan", foreign_keys="Message.chat_id")
     pinned_messages = relationship("PinnedMessage", back_populates="chatroom", cascade="all, delete-orphan")
-    creator = relationship("User", foreign_keys=[created_by])
+    creator = relationship("User", foreign_keys=[created_by],back_populates="created_chatrooms")
     workspace = relationship("Workspace", back_populates="chatrooms")
     last_message = relationship("Message", foreign_keys=[last_message_id], post_update=True)
 

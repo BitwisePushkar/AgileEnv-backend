@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -9,7 +9,7 @@ from app.auth.crud import get_user_id, get_profile_id
 from app.project.crud import (get_project_or_404,is_workspace_admin,is_project_member,require_project_role,)
 from app.kanban import crud, schemas
 from app.kanban.models import KanbanCard, KanbanColumn
-from app.utils.email import send_kanban_card_assigned, send_kanban_card_completed, send_kanban_card_reopened
+from app.utils.email.email_tasks import send_kanban_assigned_task, send_kanban_completed_task,send_kanban_reopened_task
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -150,8 +150,8 @@ def create_default_columns(request: Request,project_id: int,db: Session = Depend
 
 @router.post("/api/kanban/columns/{column_id}/cards/",response_model=schemas.CardResponse,status_code=status.HTTP_201_CREATED,)
 @limiter.limit("60/minute")
-def create_card(request: Request,column_id: int,data: schemas.CardCreate,background_tasks: BackgroundTasks,
-                db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def create_card(request: Request,column_id: int,data: schemas.CardCreate,db: Session = Depends(get_db),
+                current_user: User = Depends(JWTUtil.get_user),):
     col = crud.get_column_or_404(db, column_id)
     project = get_project_or_404(db, col.project_id)
     crud.assert_kanban_project(project)
@@ -162,8 +162,7 @@ def create_card(request: Request,column_id: int,data: schemas.CardCreate,backgro
         if assignee:
             assignee_profile = get_profile_id(db, card.assignee_id)
             lang = assignee_profile.language if assignee_profile and assignee_profile.language else "en"
-            background_tasks.add_task(send_kanban_card_assigned,
-                                      email = assignee.email,
+            send_kanban_assigned_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       card_title = card.title,
                                       project_name = project.name,
@@ -196,8 +195,8 @@ def get_card(request: Request,card_id: int,db: Session = Depends(get_db),current
 
 @router.put("/api/kanban/cards/{card_id}/",response_model=schemas.CardResponse,)
 @limiter.limit("60/minute")
-def update_card(request: Request,card_id: int,data: schemas.CardUpdate,background_tasks: BackgroundTasks,
-                db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
+def update_card(request: Request,card_id: int,data: schemas.CardUpdate,db: Session = Depends(get_db),
+                current_user: User = Depends(JWTUtil.get_user),):
     card = crud.get_card_or_404(db, card_id)
     project = get_project_or_404(db, card.project_id)
     crud.assert_kanban_project(project)
@@ -211,8 +210,7 @@ def update_card(request: Request,card_id: int,data: schemas.CardUpdate,backgroun
         if assignee:
             assignee_profile = get_profile_id(db, card.assignee_id)
             lang = assignee_profile.language if assignee_profile and assignee_profile.language else "en"
-            background_tasks.add_task(send_kanban_card_assigned,
-                                      email = assignee.email,
+            send_kanban_assigned_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       card_title = card.title,
                                       project_name = project.name,
@@ -257,8 +255,7 @@ def restore_card(request: Request,card_id: int,data: schemas.CardRestoreRequest,
 
 @router.patch("/api/kanban/cards/{card_id}/move/",response_model=schemas.CardResponse,)
 @limiter.limit("120/minute")
-def move_card(request: Request,card_id: int,data: schemas.CardMove,background_tasks: BackgroundTasks,db: Session = Depends(get_db),
-              current_user: User = Depends(JWTUtil.get_user),):
+def move_card(request: Request,card_id: int,data: schemas.CardMove,db: Session = Depends(get_db),current_user: User = Depends(JWTUtil.get_user),):
     card = crud.get_card_or_404(db, card_id)
     project = get_project_or_404(db, card.project_id)
     crud.assert_kanban_project(project)
@@ -275,8 +272,7 @@ def move_card(request: Request,card_id: int,data: schemas.CardMove,background_ta
         if creator:
             creator_profile = get_profile_id(db, card.created_by)
             lang = creator_profile.language if creator_profile and creator_profile.language else "en"
-            background_tasks.add_task(send_kanban_card_completed,
-                                      email = creator.email,
+            send_kanban_completed_task.delay(email = creator.email,
                                       username = creator.username or creator.email,
                                       card_title = card.title,
                                       project_name = project.name,
@@ -289,8 +285,7 @@ def move_card(request: Request,card_id: int,data: schemas.CardMove,background_ta
             assignee_profile = get_profile_id(db, card.assignee_id)
             lang = assignee_profile.language if assignee_profile and assignee_profile.language else "en"
             dest_col_obj = crud.get_column_or_404(db, data.column_id)
-            background_tasks.add_task(send_kanban_card_reopened,
-                                      email = assignee.email,
+            send_kanban_reopened_task.delay(email = assignee.email,
                                       username = assignee.username or assignee.email,
                                       card_title = card.title,
                                       project_name = project.name,
