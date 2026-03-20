@@ -13,6 +13,7 @@ from app.chat.routers import router as chat_router
 from app.project.routers import router as project_router
 from app.kanban.routers import router as kanban_router
 from app.scrum.routers import router as scrum_router
+from app.whiteboard.routers import router as whiteboard_router
 from app.utils.dbUtil import init_db, get_db
 import asyncio
 import logging
@@ -92,3 +93,4 @@ app.include_router(chat_router, tags=["Chat"])
 app.include_router(project_router, tags=["Project"])
 app.include_router(kanban_router, tags=["Kanban"])
 app.include_router(scrum_router, tags=["Scrum"])
+app.include_router(whiteboard_router, tags=["Whiteboard"])

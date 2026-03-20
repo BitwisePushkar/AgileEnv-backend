@@ -6,7 +6,9 @@ import app.workspace.model
 import app.project.model       
 import app.kanban.models       
 import app.scrum.model         
-import app.chat.models        
+import app.chat.models
+import app.whiteboard.model     
+from app.whiteboard.crud import prune_old_history
 from app.utils.email.otp import send_otp_email
 from app.utils.email.workspace import workspace_invitation_new_user,workspace_invitation,workspace_welcome
 from app.utils.email.project import send_project_member_added, send_project_member_removed
@@ -282,3 +284,16 @@ def send_scrum_reopened_task(self, email: str, username: str, issue_title: str, 
     except Exception as exc:
         _log_final_failure("send_scrum_reopened_task", email, exc)
         raise
+
+@celery_app.task(name="app.utils.email.email_tasks.run_whiteboard_prune_task",max_retries=0, acks_late=True)
+def run_whiteboard_prune_task() -> dict:
+    db = SessionLocal()
+    try:
+        deleted = prune_old_history(db)
+        return {"deleted": deleted}
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("Whiteboard prune failed: %s", exc, exc_info=True)
+        raise
+    finally:
+        db.close()

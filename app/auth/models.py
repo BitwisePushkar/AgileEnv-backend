@@ -29,6 +29,11 @@ class User(Base):
     assigned_scrum_issues = relationship("ScrumIssue", foreign_keys="ScrumIssue.assignee_id", back_populates="assignee")
     reported_scrum_issues = relationship("ScrumIssue", foreign_keys="ScrumIssue.reporter_id", back_populates="reporter")
     scrum_comments = relationship("IssueComment", foreign_keys="IssueComment.author_id", back_populates="author")
+    created_wb_elements = relationship("WhiteboardElement",foreign_keys="WhiteboardElement.created_by",
+                                       back_populates="creator",)
+    edited_wb_elements = relationship("WhiteboardElement",foreign_keys="WhiteboardElement.updated_by",
+                                      back_populates="last_editor",)
+ 
     created_epics = relationship("Epic", foreign_keys="Epic.created_by", back_populates="creator")
     invited_users = relationship("WorkspaceInvite",back_populates="inviter")
     forwarded_messages = relationship("Message", foreign_keys="Message.forwarded_from_user_id", back_populates="forwarded_from_user")

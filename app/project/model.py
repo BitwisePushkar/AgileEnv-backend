@@ -32,6 +32,7 @@ class Project(Base):
     scrum_epics = relationship("Epic", back_populates="project", cascade="all, delete-orphan")
     scrum_sprints = relationship("Sprint", back_populates="project", cascade="all, delete-orphan")
     scrum_issues = relationship("ScrumIssue", back_populates="project", cascade="all, delete-orphan")
+    whiteboard = relationship("Whiteboard", back_populates="project",uselist=False, cascade="all, delete-orphan")
 
 class ProjectMember(Base):
     __tablename__ = "project_members"

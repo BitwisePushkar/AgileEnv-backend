@@ -5,7 +5,7 @@ from app.auth import schemas, crud
 from app.utils.dbUtil import get_db
 from app.utils import JWTUtil
 from app.utils.googleUtil import google_oauth
-from app.utils.redisUtils import redis_client
+from app.utils.redis.auth_redis import redis_client
 import logging
 import secrets
 from slowapi import Limiter

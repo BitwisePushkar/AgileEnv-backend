@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.utils.dbUtil import get_db
 from app.auth import crud
 from app.utils.settings import settings
-from app.utils.redisUtils import redis_client 
+from app.utils.redis.auth_redis import redis_client 
 
 oauth_schema = OAuth2PasswordBearer(tokenUrl="/api/login")
 
