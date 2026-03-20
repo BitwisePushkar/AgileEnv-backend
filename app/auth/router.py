@@ -8,7 +8,7 @@ from app.utils.passUtil import hash_pwd, verify_pass
 from app.utils import JWTUtil
 from app.utils.email.email_tasks import send_otp_task
 from app.utils.S3Util import s3_upload, s3_delete, validate_image
-from app.utils.redisUtils import redis_client
+from app.utils.redis.auth_redis import redis_client
 from app.auth.schemas import SUPPORTED_LANGUAGE_TAGS
 from typing import Optional
 import logging

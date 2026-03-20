@@ -7,7 +7,8 @@ import app.workspace.model
 import app.project.model             
 import app.kanban.models               
 import app.scrum.model                
-import app.chat.models             
+import app.chat.models    
+import app.whiteboard.model         
 
 logging.basicConfig(level = logging.INFO, format = "%(asctime)s [db-init] %(levelname)s: %(message)s",)
 logger = logging.getLogger(__name__)

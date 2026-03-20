@@ -13,7 +13,7 @@ from app.utils import JWTUtil
 from app.utils.JWTUtil import decode_token
 from app.utils.dbUtil import SessionLocal, get_db
 from app.utils.S3Util import upload_chat_file
-from app.utils.websocketUtil import manager
+from app.utils.websocket.chat import manager
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 

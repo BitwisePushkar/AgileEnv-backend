@@ -46,5 +46,10 @@ celery_app.conf.update(
             "schedule": 300,
             "options":  {"queue": "reminders", "countdown": 30}, 
         },
+        "whiteboard-history-prune": {
+            "task": "app.utils.email.email_tasks.run_whiteboard_prune_task",
+            "schedule": 86400, 
+            "options": {"queue": "reminders"},
+        },
     },
 )
