@@ -1,7 +1,7 @@
 # Agile Backend
 
 A minimalist, Jira-inspired project management backend powered by **FastAPI**.
-Designed around scalable Agile workflows — **wworkspaces → projects → boards (Kanban / Scrum) → issues → sprints**.
+Designed around scalable Agile workflows — **workspaces → projects → boards (Kanban / Scrum) → issues → sprints**.
 
 ---
 
@@ -67,6 +67,10 @@ Sprint Lifecycle · Issue Movement
 
 Workspace Chatrooms · Messaging · Member Control
 
+### WhiteBoard
+
+Live drawing & updates · Cursor tracking (multi-user) · Undo support · History tracking (last 30 days)
+
 ### Dashboard
 
 Workspace & Project Stats · Personal Work Summary
@@ -78,6 +82,11 @@ Workspace & Project Stats · Personal Work Summary
 Powered by **Celery + Redis**
 
 Email Sending · Notifications · Scheduled Jobs · Reminder Emails
+
+---
+## Upcoming feature
+
+Payments & Billing · Subscription plans (Free / Pro / Team) · Invoice generation · Payment history
 
 ---
 
