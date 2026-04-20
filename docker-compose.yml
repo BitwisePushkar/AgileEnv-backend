@@ -28,7 +28,7 @@ services:
 
   db-init:
     build: .
-    command: python -m app.utils.db_init
+    command: uv run python -m app.utils.db_init
     restart: "no"    
     env_file:
       - ./app/.env
@@ -39,6 +39,7 @@ services:
       REDIS_PORT: "6379"
     volumes:
       - .:/app
+      - /app/.venv
     depends_on:
       db:
         condition: service_healthy    
@@ -57,6 +58,7 @@ services:
       REDIS_PORT: "6379"
     volumes:
       - .:/app
+      - /app/.venv
     depends_on:
       db-init:
         condition: service_completed_successfully 
@@ -66,7 +68,7 @@ services:
   celery-worker:
     build: .
     restart: unless-stopped
-    command: celery -A app.utils.celeryUtil worker --loglevel=info --queues=emails,reminders --concurrency=4
+    command: uv run celery -A app.utils.celeryUtil worker --loglevel=info --queues=emails,reminders --concurrency=4
     env_file:
       - ./app/.env
     environment:
@@ -76,6 +78,7 @@ services:
       REDIS_PORT: "6379"
     volumes:
       - .:/app
+      - /app/.venv
     depends_on:
       db-init:
         condition: service_completed_successfully
@@ -85,7 +88,7 @@ services:
   celery-beat:
     build: .
     restart: unless-stopped
-    command: celery -A app.utils.celeryUtil beat --loglevel=info
+    command: uv run celery -A app.utils.celeryUtil beat --loglevel=info
     env_file:
       - ./app/.env
     environment:
@@ -95,6 +98,7 @@ services:
       REDIS_PORT: "6379"
     volumes:
       - .:/app
+      - /app/.venv
     depends_on:
       db-init:
         condition: service_completed_successfully
